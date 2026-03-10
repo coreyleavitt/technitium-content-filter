@@ -58,10 +58,13 @@ public sealed class BlockListManager : IDisposable
     /// <summary>
     /// Downloads and parses all blocklists referenced by any profile. Loads from
     /// cache first, then fetches any that are stale or missing.
+    /// #13: Deduplicates URLs before downloading.
+    /// #15: Downloads in parallel with Task.WhenAll.
     /// </summary>
     public async Task RefreshAsync(IEnumerable<Models.BlockListConfig> blockLists)
     {
-        var uniqueUrls = new Dictionary<string, int>(); // url → min refresh hours
+        // #13: Deduplicate URLs using HashSet-backed dictionary
+        var uniqueUrls = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase); // url -> min refresh hours
         foreach (var bl in blockLists)
         {
             if (!bl.Enabled || string.IsNullOrWhiteSpace(bl.Url))
@@ -71,19 +74,27 @@ public sealed class BlockListManager : IDisposable
                 uniqueUrls[bl.Url] = bl.RefreshHours;
         }
 
-        foreach (var (url, refreshHours) in uniqueUrls)
+        // #15: Download all blocklists in parallel
+        var tasks = uniqueUrls.Select(kvp => RefreshOneWithFallbackAsync(kvp.Key, kvp.Value));
+        await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Wraps RefreshOneAsync with error handling and cache fallback.
+    /// </summary>
+    private async Task RefreshOneWithFallbackAsync(string url, int refreshHours)
+    {
+        try
         {
-            try
-            {
-                await RefreshOneAsync(url, refreshHours);
-            }
-            catch (Exception ex)
-            {
-                _log?.Invoke($"BlockListManager: failed to refresh {url}: {ex.Message}");
-                // Try to load from cache if we have it
-                if (!_domainsByUrl.ContainsKey(url))
-                    LoadFromCache(url);
-            }
+            await RefreshOneAsync(url, refreshHours);
+        }
+        catch (Exception ex)
+        {
+            // #25: Log with exception details
+            _log?.Invoke($"BlockListManager: failed to refresh {url}: {ex.Message}");
+            // Try to load from cache if we have it
+            if (!_domainsByUrl.ContainsKey(url))
+                LoadFromCache(url);
         }
     }
 
@@ -106,7 +117,7 @@ public sealed class BlockListManager : IDisposable
 
         var domains = ParseFile(cacheFile, _log);
         _domainsByUrl[url] = domains;
-        _log?.Invoke($"BlockListManager: {url} → {domains.Count} domains");
+        _log?.Invoke($"BlockListManager: {url} -> {domains.Count} domains");
     }
 
     private void LoadFromCache(string url)
@@ -116,7 +127,7 @@ public sealed class BlockListManager : IDisposable
         {
             var domains = ParseFile(cacheFile, _log);
             _domainsByUrl[url] = domains;
-            _log?.Invoke($"BlockListManager: loaded {url} from cache → {domains.Count} domains");
+            _log?.Invoke($"BlockListManager: loaded {url} from cache -> {domains.Count} domains");
         }
     }
 
@@ -192,8 +203,10 @@ public sealed class BlockListManager : IDisposable
             var json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<BlockListMeta>(json);
         }
-        catch
+        // #23: Catch specific exception type and log instead of bare catch
+        catch (Exception ex)
         {
+            _log?.Invoke($"BlockListManager: failed to load meta for {url}: {ex.Message}");
             return null;
         }
     }

@@ -11,6 +11,7 @@ namespace ContentFilter.Services;
 /// Thread safety: _config is treated as an immutable snapshot. Load() builds
 /// a new AppConfig and atomically swaps the reference. Readers grab the
 /// reference once and iterate freely without locks.
+/// #26: SaveAsync uses SemaphoreSlim to prevent concurrent write corruption.
 /// </summary>
 public sealed class ConfigService
 {
@@ -22,6 +23,9 @@ public sealed class ConfigService
 
     private readonly string _configPath;
     private volatile AppConfig _config = new();
+
+    // #26: Semaphore for serializing config writes
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     /// <summary>
     /// Returns the current config snapshot. Safe to read from any thread --
@@ -50,17 +54,25 @@ public sealed class ConfigService
 
     /// <summary>
     /// Atomically saves the current config to disk. Uses temp file + rename to
-    /// prevent partial writes. Not thread-safe for concurrent callers -- Technitium
-    /// serializes config saves through its API layer.
+    /// prevent partial writes.
+    /// #26: Thread-safe via SemaphoreSlim to prevent concurrent write corruption.
     /// </summary>
     public async Task SaveAsync()
     {
-        var json = JsonSerializer.Serialize(_config, JsonOptions);
+        await _writeLock.WaitAsync();
+        try
+        {
+            var json = JsonSerializer.Serialize(_config, JsonOptions);
 
-        // Atomic write: write to temp file, then rename
-        var tempPath = _configPath + ".tmp";
-        await File.WriteAllTextAsync(tempPath, json);
-        File.Move(tempPath, _configPath, overwrite: true);
+            // Atomic write: write to temp file, then rename
+            var tempPath = _configPath + ".tmp";
+            await File.WriteAllTextAsync(tempPath, json);
+            File.Move(tempPath, _configPath, overwrite: true);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     public string Serialize()

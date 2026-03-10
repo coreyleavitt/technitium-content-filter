@@ -12,8 +12,10 @@ namespace ContentFilter.Services;
 public sealed class ServiceRegistry
 {
     private readonly Dictionary<string, BlockedServiceDefinition> _embeddedServices;
-    private Dictionary<string, BlockedServiceDefinition> _services;
-    private Dictionary<string, string> _domainToServiceId;
+
+    // #11: Mark as volatile to prevent stale reads across threads
+    private volatile Dictionary<string, BlockedServiceDefinition> _services;
+    private volatile Dictionary<string, string> _domainToServiceId;
 
     public IReadOnlyDictionary<string, BlockedServiceDefinition> Services => _services;
 
@@ -34,31 +36,34 @@ public sealed class ServiceRegistry
         foreach (var (id, svc) in customServices)
             merged[id] = svc;
 
-        _services = merged;
+        // Atomic swap of both references
         _domainToServiceId = BuildDomainIndex(merged);
+        _services = merged;
     }
 
     /// <summary>
     /// Given a queried domain name, returns the service ID if it matches a known
     /// blocked service, or null if no match. Handles subdomain matching --
     /// "www.youtube.com" matches "youtube.com".
+    /// #14: Uses string slicing instead of span.ToString().
     /// </summary>
     public string? FindServiceForDomain(string domain)
     {
-        // Trim trailing FQDN dot; OrdinalIgnoreCase on the dictionary handles case
-        var trimmed = domain.AsSpan().TrimEnd('.');
+        // Trim trailing FQDN dot
+        var trimmed = domain.EndsWith('.') ? domain[..^1] : domain;
 
         // Check exact match first, then walk up subdomains
+        var current = trimmed;
         while (true)
         {
-            if (_domainToServiceId.TryGetValue(trimmed.ToString(), out var serviceId))
+            if (_domainToServiceId.TryGetValue(current, out var serviceId))
                 return serviceId;
 
-            var dotIndex = trimmed.IndexOf('.');
-            if (dotIndex < 0 || dotIndex == trimmed.Length - 1)
+            var dotIndex = current.IndexOf('.');
+            if (dotIndex < 0 || dotIndex == current.Length - 1)
                 break;
 
-            trimmed = trimmed[(dotIndex + 1)..];
+            current = current[(dotIndex + 1)..];
         }
 
         return null;
