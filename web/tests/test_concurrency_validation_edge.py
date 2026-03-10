@@ -134,17 +134,28 @@ class TestMalformedJsonConfig:
 
 
 # Strategies for URL schemes
-url_scheme = st.sampled_from(["http", "https", "ftp", "file", "data", "javascript", ""])
+valid_url_scheme = st.sampled_from(["http", "https"])
+invalid_url_scheme = st.sampled_from(["ftp", "file", "data", "javascript"])
 
-url_with_scheme = st.builds(
-    lambda scheme, domain, path: f"{scheme}://{domain}/{path}.txt" if scheme else f"{domain}/{path}",
-    url_scheme,
-    st.text(
-        alphabet=string.ascii_lowercase + string.digits + ".-",
-        min_size=3,
-        max_size=30,
-    ).filter(lambda s: "." in s and not s.startswith(".") and not s.endswith(".")),
-    st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+_domain_strategy = st.text(
+    alphabet=string.ascii_lowercase + string.digits + ".-",
+    min_size=3,
+    max_size=30,
+).filter(lambda s: "." in s and not s.startswith(".") and not s.endswith("."))
+_path_strategy = st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10)
+
+valid_url = st.builds(
+    lambda scheme, domain, path: f"{scheme}://{domain}/{path}.txt",
+    valid_url_scheme,
+    _domain_strategy,
+    _path_strategy,
+)
+
+invalid_url = st.builds(
+    lambda scheme, domain, path: f"{scheme}://{domain}/{path}.txt",
+    invalid_url_scheme,
+    _domain_strategy,
+    _path_strategy,
 )
 
 
@@ -152,10 +163,10 @@ url_with_scheme = st.builds(
 class TestUrlValidation:
     """Property tests for blocklist URL handling."""
 
-    @given(url=url_with_scheme)
+    @given(url=valid_url)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_blocklist_url_stored_as_provided(self, url, tmp_path):
-        """URLs are stored exactly as provided (app doesn't validate scheme)."""
+    def test_valid_blocklist_url_stored(self, url, tmp_path):
+        """Valid http/https URLs are stored exactly as provided."""
         config_path = tmp_path / "dnsApp.config"
         services_path = tmp_path / "blocked-services.json"
         services_path.write_text(json.dumps({}))
@@ -190,14 +201,50 @@ class TestUrlValidation:
                 "/api/blocklists",
                 json={"url": url, "name": "test", "enabled": True, "refreshHours": 24},
             )
-            if url.strip():
-                assert resp.status_code == 200
-                saved = json.loads(config_path.read_text())
-                urls = [bl["url"] for bl in saved["blockLists"] if isinstance(bl, dict)]
-                assert url in urls
-            else:
-                # Empty URL should be rejected
-                assert resp.status_code == 400
+            assert resp.status_code == 200
+            saved = json.loads(config_path.read_text())
+            urls = [bl["url"] for bl in saved["blockLists"] if isinstance(bl, dict)]
+            assert url in urls
+
+    @given(url=invalid_url)
+    @settings(max_examples=30, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_invalid_scheme_blocklist_url_rejected(self, url, tmp_path):
+        """Non-http/https URLs are rejected with 400."""
+        config_path = tmp_path / "dnsApp.config"
+        services_path = tmp_path / "blocked-services.json"
+        services_path.write_text(json.dumps({}))
+        base_config = {
+            "enableBlocking": True,
+            "profiles": {},
+            "clients": [],
+            "defaultProfile": None,
+            "baseProfile": None,
+            "timeZone": "UTC",
+            "scheduleAllDay": True,
+            "customServices": {},
+            "blockLists": [],
+            "_blockListsSeeded": True,
+        }
+        config_path.write_text(json.dumps(base_config, indent=2))
+
+        with (
+            patch("app.CONFIG_PATH", config_path),
+            patch("app.BLOCKED_SERVICES_PATH", services_path),
+            patch("app.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            respx.mock(assert_all_called=False) as mock,
+        ):
+            mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
+                return_value=Response(200, json={"status": "ok"})
+            )
+            from app import app
+
+            c = TestClient(app, raise_server_exceptions=True)
+            resp = c.post(
+                "/api/blocklists",
+                json={"url": url, "name": "test", "enabled": True, "refreshHours": 24},
+            )
+            assert resp.status_code == 400
 
     @given(
         url=st.text(
