@@ -89,7 +89,7 @@ When a DNS query arrives, the plugin evaluates in this order:
 
 ### Prerequisites
 
-- [Technitium DNS Server](https://technitium.com/dns/) v14.3+
+- [Technitium DNS Server](https://technitium.com/dns/) v14.3+ (required because the `IDnsRequestBlockingHandler` interface used by this plugin was introduced in v14.3; older versions will not load the plugin)
 - Docker (for building and testing)
 - [uv](https://docs.astral.sh/uv/) (for web UI development)
 
@@ -137,6 +137,10 @@ The web UI needs these environment variables:
 | `BLOCKED_SERVICES_PATH` | Path to `blocked-services.json` |
 | `TECHNITIUM_URL` | Technitium DNS Server URL |
 | `TECHNITIUM_API_TOKEN` | API token for config reload |
+
+### Docker Compose
+
+A complete Docker Compose example is available at [`docker-compose.example.yaml`](docker-compose.example.yaml) with both the Technitium DNS Server and the Content Filter Web UI pre-configured with a shared volume.
 
 ## Testing
 
@@ -202,13 +206,13 @@ The plugin stores its configuration in a `config.json` file managed by Technitiu
         { "domain": "google.com", "answer": "forcesafesearch.google.com" }
       ],
       "schedule": {
-        "monday": { "startTime": "08:00", "endTime": "20:00" }
+        "mon": { "allDay": false, "start": "08:00", "end": "20:00" }
       }
     }
   },
   "clients": [
     {
-      "identifier": ["192.168.1.100", "laptop.dns.leavitt.info"],
+      "ids": ["192.168.1.100", "laptop.dns.leavitt.info"],
       "profile": "kids"
     }
   ],

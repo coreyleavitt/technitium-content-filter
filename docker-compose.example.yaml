@@ -1,0 +1,82 @@
+# Docker Compose example for Technitium Content Filter
+#
+# This file sets up two services:
+#   1. Technitium DNS Server (the DNS server with plugin support)
+#   2. Content Filter Web UI (the management interface)
+#
+# Both services share a volume so the web UI can read/write the plugin's
+# configuration file directly.
+#
+# Usage:
+#   1. Copy this file to docker-compose.yaml
+#   2. Set DNS_API_TOKEN to a secure value (or use Docker secrets)
+#   3. Build the plugin ZIP: docker build -f Dockerfile.build -o dist .
+#   4. Start the stack: docker compose up -d
+#   5. Install the plugin via the Technitium API (see docs/getting-started/installation.md)
+#
+# After installation, the web UI is available at http://localhost:8000
+
+services:
+  # Technitium DNS Server
+  # https://technitium.com/dns/
+  technitium:
+    image: technitium/dns-server:latest
+    hostname: technitium
+    ports:
+      # DNS ports
+      - "53:53/udp"
+      - "53:53/tcp"
+      # DNS-over-HTTPS (optional)
+      - "443:443/tcp"
+      # DNS-over-TLS (optional)
+      - "853:853/tcp"
+      # Technitium admin panel
+      - "5380:5380/tcp"
+    environment:
+      # Admin password for the Technitium web panel (set on first run)
+      - DNS_SERVER_ADMIN_PASSWORD=changeme
+      # Optional: set the default domain for DNS-over-TLS/HTTPS
+      # - DNS_SERVER_DOMAIN=dns.example.com
+    volumes:
+      # Persistent storage for DNS server data, zones, and plugin files.
+      # The plugin config file will be at:
+      #   technitium-data:/config/apps/ContentFilter/dnsApp.config
+      - technitium-data:/etc/dns
+    restart: unless-stopped
+
+  # Content Filter Web UI
+  content-filter-web:
+    build: ./web
+    ports:
+      - "8000:8000"
+    environment:
+      # Path to the plugin's config file inside the shared volume.
+      # This matches the Technitium convention:
+      #   /etc/dns/config/apps/<AppName>/dnsApp.config
+      - CONFIG_PATH=/etc/dns/config/apps/ContentFilter/dnsApp.config
+
+      # Path to the blocked-services.json file exported by the plugin on startup.
+      - BLOCKED_SERVICES_PATH=/etc/dns/config/apps/ContentFilter/blocked-services.json
+
+      # URL of the Technitium DNS Server HTTP API (use the Docker service name).
+      - TECHNITIUM_URL=http://technitium:5380
+
+      # API token for triggering config reloads in Technitium.
+      # Generate a token in the Technitium admin panel under Settings > API.
+      # For production, use TECHNITIUM_API_TOKEN_FILE with Docker secrets instead.
+      - TECHNITIUM_API_TOKEN=your-api-token-here
+
+      # App name registered in Technitium (must match the installed plugin name).
+      - APP_NAME=ContentFilter
+
+      # URL prefix when running behind a reverse proxy (default: /).
+      # - BASE_PATH=/parental/
+    volumes:
+      # Mount the same volume as Technitium so the web UI can read/write the config file.
+      - technitium-data:/etc/dns
+    depends_on:
+      - technitium
+    restart: unless-stopped
+
+volumes:
+  technitium-data:

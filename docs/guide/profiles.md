@@ -36,6 +36,15 @@ These are edited on their own pages under the **Filters** menu, with a profile p
 
 Optional time-based filtering. When a schedule is configured, filtering only applies during the specified time windows. Outside those windows, all queries are allowed. See [Schedules](schedules.md).
 
+## Default Profile vs Base Profile
+
+Two global settings affect how profiles are applied:
+
+- **Default Profile** (`defaultProfile`): The fallback profile for clients without an explicit assignment. When a DNS query arrives from an unknown client, this profile's filters are applied. If empty, unmatched clients are unfiltered (the UI shows "None (allow all)").
+- **Base Profile** (`baseProfile`): A profile whose filters are merged into every other profile during compilation. This provides shared filtering rules (e.g., ad blocking, malware protection) across all profiles. Profile-level allowlists can override base-level blocks.
+
+These are independent settings and can reference different profiles. See [Base Profile](base-profile.md) for details on inheritance behavior.
+
 ## Renaming a Profile
 
 Renaming a profile in the edit modal creates a new profile with the new name and deletes the old one. Client assignments are updated automatically.

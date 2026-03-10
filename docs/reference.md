@@ -10,7 +10,7 @@ Complete reference for all configuration fields in `config.json`.
 | `baseProfile` | string | `""` | Name of the profile whose filters are inherited by all other profiles |
 | `defaultProfile` | string | `""` | Profile used for clients without explicit assignments |
 | `timeZone` | string | `"UTC"` | IANA timezone identifier for schedule evaluation |
-| `scheduleAllDay` | boolean | `true` | Default schedule behavior for profiles without explicit schedules |
+| `scheduleAllDay` | boolean | `true` | Global 24-hour schedule mode. When `true`, blocking is active all day on scheduled days. When `false`, `start`/`end` times are used. See [Schedules](guide/schedules.md) |
 | `profiles` | object | `{}` | Map of profile name to [ProfileConfig](#profileconfig) |
 | `clients` | array | `[]` | List of [ClientConfig](#clientconfig) entries |
 | `blockLists` | array | `[]` | List of [BlockListConfig](#blocklistconfig) entries |
@@ -44,7 +44,7 @@ Custom service IDs defined in `customServices` can also be used.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `identifier` | string[] | Network identifiers for this client |
+| `ids` | string[] | Network identifiers for this client |
 | `profile` | string | Profile name to assign |
 | `name` | string | Display name (optional, used in web UI) |
 
@@ -99,12 +99,13 @@ Lines starting with `#` or `!` are treated as comments.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `startTime` | string | Start time in `HH:MM` format (24-hour) |
-| `endTime` | string | End time in `HH:MM` format (24-hour) |
+| `allDay` | boolean | When `true`, filtering is active for the full day (no time range needed) |
+| `start` | string | Start time in `HH:MM` format (24-hour). Used when `allDay` is `false` |
+| `end` | string | End time in `HH:MM` format (24-hour). Used when `allDay` is `false` |
 
 ### Day names
 
-Schedule keys are lowercase day names: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`.
+Schedule keys are 3-letter lowercase day abbreviations: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
 
 ## CustomServiceConfig
 
@@ -141,13 +142,13 @@ Schedule keys are lowercase day names: `monday`, `tuesday`, `wednesday`, `thursd
       "customRules": ["gambling-site.com", "@@safe-gambling-education.org"],
       "dnsRewrites": [],
       "schedule": {
-        "monday": { "startTime": "07:00", "endTime": "21:00" },
-        "tuesday": { "startTime": "07:00", "endTime": "21:00" },
-        "wednesday": { "startTime": "07:00", "endTime": "21:00" },
-        "thursday": { "startTime": "07:00", "endTime": "21:00" },
-        "friday": { "startTime": "07:00", "endTime": "22:00" },
-        "saturday": { "startTime": "09:00", "endTime": "22:00" },
-        "sunday": { "startTime": "09:00", "endTime": "21:00" }
+        "mon": { "allDay": false, "start": "07:00", "end": "21:00" },
+        "tue": { "allDay": false, "start": "07:00", "end": "21:00" },
+        "wed": { "allDay": false, "start": "07:00", "end": "21:00" },
+        "thu": { "allDay": false, "start": "07:00", "end": "21:00" },
+        "fri": { "allDay": false, "start": "07:00", "end": "22:00" },
+        "sat": { "allDay": false, "start": "09:00", "end": "22:00" },
+        "sun": { "allDay": false, "start": "09:00", "end": "21:00" }
       }
     },
     "adults": {
@@ -162,12 +163,12 @@ Schedule keys are lowercase day names: `monday`, `tuesday`, `wednesday`, `thursd
   "clients": [
     {
       "name": "Kid's Laptop",
-      "identifier": ["192.168.1.100", "kid-laptop.dns.example.com"],
+      "ids": ["192.168.1.100", "kid-laptop.dns.example.com"],
       "profile": "kids"
     },
     {
       "name": "Living Room TV",
-      "identifier": ["192.168.1.50"],
+      "ids": ["192.168.1.50"],
       "profile": "kids"
     }
   ],
@@ -187,3 +188,7 @@ Schedule keys are lowercase day names: `monday`, `tuesday`, `wednesday`, `thursd
   }
 }
 ```
+
+## See Also
+
+- [REST API Reference](reference-api.md) -- Documentation for all web UI API endpoints

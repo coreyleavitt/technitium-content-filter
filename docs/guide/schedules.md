@@ -9,13 +9,13 @@ Each profile can define time windows for each day of the week. Filtering is only
 ```json
 {
   "schedule": {
-    "monday": { "startTime": "08:00", "endTime": "20:00" },
-    "tuesday": { "startTime": "08:00", "endTime": "20:00" },
-    "wednesday": { "startTime": "08:00", "endTime": "20:00" },
-    "thursday": { "startTime": "08:00", "endTime": "20:00" },
-    "friday": { "startTime": "08:00", "endTime": "22:00" },
-    "saturday": { "startTime": "10:00", "endTime": "22:00" },
-    "sunday": { "startTime": "10:00", "endTime": "20:00" }
+    "mon": { "allDay": false, "start": "08:00", "end": "20:00" },
+    "tue": { "allDay": false, "start": "08:00", "end": "20:00" },
+    "wed": { "allDay": false, "start": "08:00", "end": "20:00" },
+    "thu": { "allDay": false, "start": "08:00", "end": "20:00" },
+    "fri": { "allDay": false, "start": "08:00", "end": "22:00" },
+    "sat": { "allDay": false, "start": "10:00", "end": "22:00" },
+    "sun": { "allDay": false, "start": "10:00", "end": "20:00" }
   }
 }
 ```
@@ -33,16 +33,68 @@ Schedules are evaluated in the timezone configured in the global settings (`time
 
 The timezone setting applies to **all** profiles.
 
-## Schedule All Day
+## Schedule All Day (Global Setting)
 
-The global `scheduleAllDay` setting determines the default behavior when a profile has no schedule defined:
+The `scheduleAllDay` field is a **global** setting configured at the root of the configuration (not per-profile). It is labeled "24-hour schedule mode" in the web UI. It controls how schedule entries are interpreted across all profiles.
 
-- **`true`** (default): Filtering is active 24/7 for profiles without schedules
-- **`false`**: Filtering is inactive for profiles without schedules
+### When `scheduleAllDay` is `true` (default)
+
+On days that have a schedule entry, blocking is active for the **full 24 hours**. The `start` and `end` time fields are ignored. This is the simpler mode -- you only need to check which days should have filtering, without worrying about specific hours.
+
+```json
+{
+  "scheduleAllDay": true,
+  "profiles": {
+    "kids": {
+      "schedule": {
+        "mon": { "allDay": true },
+        "tue": { "allDay": true },
+        "wed": { "allDay": true },
+        "thu": { "allDay": true },
+        "fri": { "allDay": true }
+      }
+    }
+  }
+}
+```
+
+In this example, filtering is active all day Monday through Friday and inactive on weekends.
+
+### When `scheduleAllDay` is `false`
+
+You must specify `start` and `end` times for each day. Filtering is only active during the specified time window. The per-day `allDay` field can still be set to `true` to override and block for the full day on that specific day.
+
+```json
+{
+  "scheduleAllDay": false,
+  "profiles": {
+    "kids": {
+      "schedule": {
+        "mon": { "allDay": false, "start": "08:00", "end": "20:00" },
+        "tue": { "allDay": false, "start": "08:00", "end": "20:00" },
+        "sat": { "allDay": true },
+        "sun": { "allDay": true }
+      }
+    }
+  }
+}
+```
+
+In this example, filtering runs 8 AM to 8 PM on Monday and Tuesday, all day on Saturday and Sunday, and is inactive on other days.
+
+### ScheduleEntry Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allDay` | boolean | When `true`, filtering is active for the full day on this day |
+| `start` | string | Start time in `HH:MM` format (used when `allDay` is `false`) |
+| `end` | string | End time in `HH:MM` format (used when `allDay` is `false`) |
+
+Days use 3-letter lowercase abbreviations: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
 
 ## Editing Schedules
 
-In the profile edit modal, toggle each day on/off and set start/end times using the schedule grid. Days without a time window configured mean filtering is inactive for that day.
+In the profile edit modal, toggle each day on/off and set start/end times using the schedule grid. Days without a schedule entry mean filtering is inactive for that day.
 
 ## Evaluation in the Pipeline
 
