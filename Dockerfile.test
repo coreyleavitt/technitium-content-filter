@@ -16,8 +16,9 @@ RUN dotnet build -c Release
 WORKDIR /src/app
 COPY src/ParentalControlsApp/ ./src/ParentalControlsApp/
 
-# Copy test project
+# Copy test project and shared settings
 COPY tests/ParentalControlsApp.Tests/ ./tests/ParentalControlsApp.Tests/
+COPY tests/coverlet.runsettings ./tests/coverlet.runsettings
 
 # Fix project reference path (tests reference ../../src which is now ./src from /src/app)
 WORKDIR /src/app/tests/ParentalControlsApp.Tests

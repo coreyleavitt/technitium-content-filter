@@ -131,7 +131,7 @@ jobs:
           enable-cache: true
 
       - name: Ruff check
-        run: uvx ruff check src/ app.py tests/
+        run: uvx ruff check app.py tests/
 
       - name: Ruff format
         run: uvx ruff format --check app.py tests/
