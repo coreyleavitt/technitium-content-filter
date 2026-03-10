@@ -1,0 +1,62 @@
+<%inherit file="base.html"/>
+<%def name="title()">Clients</%def>
+<script id="page-data" type="application/json">${json.dumps({"clients": config.get("clients", []), "profileNames": list(config.get("profiles", {}).keys())})}</script>
+
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-900">Clients</h1>
+        <button onclick="openClientModal()"
+            class="inline-flex justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+            Add Client
+        </button>
+    </div>
+
+    <div id="clientsList"></div>
+</div>
+
+<!-- Client Modal -->
+<div id="clientModal" class="relative z-10 hidden" aria-modal="true">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 sm:items-center">
+            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 shadow-xl sm:my-8 sm:w-full sm:max-w-md sm:p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" id="clientModalTitle">Add Client</h3>
+                <form id="clientForm" class="space-y-4">
+                    <input type="hidden" id="editIndex" value="">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Device Name</label>
+                        <input type="text" id="clientName" placeholder="Kids iPad"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Identifiers</label>
+                        <p class="text-xs text-gray-500 mt-0.5 mb-1">IP addresses, CIDR ranges, or DoH/DoT/DoQ domain names (one per line)</p>
+                        <textarea id="clientIds" rows="3" required placeholder="192.168.1.100&#10;10.0.0.0/24&#10;alice.dns.leavitt.info"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Profile</label>
+                        <select id="clientProfile"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="">No profile</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button type="button" onclick="closeClientModal()"
+                            class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%def name="scripts()">
+<script src="${base_path}/static/js/clients.js"></script>
+</%def>

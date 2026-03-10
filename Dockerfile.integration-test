@@ -1,0 +1,33 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+# Install Docker CLI (needed by Testcontainers to manage sibling containers)
+RUN apt-get update -qq && \
+    apt-get install -y -qq curl zip >/dev/null 2>&1 && \
+    curl -fsSL https://get.docker.com | sh >/dev/null 2>&1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Clone and build Technitium dependencies
+RUN git clone --depth 1 --branch dns-server-v14.3.0 https://github.com/TechnitiumSoftware/TechnitiumLibrary.git /src/TechnitiumLibrary && \
+    git clone --depth 1 --branch v14.3.0 https://github.com/TechnitiumSoftware/DnsServer.git /src/DnsServer
+
+RUN dotnet build /src/TechnitiumLibrary/TechnitiumLibrary/TechnitiumLibrary.csproj -c Release && \
+    dotnet build /src/TechnitiumLibrary/TechnitiumLibrary.Net/TechnitiumLibrary.Net.csproj -c Release
+
+WORKDIR /src/DnsServer/DnsServerCore.ApplicationCommon
+RUN dotnet build -c Release
+
+# Copy app source and build the plugin ZIP
+WORKDIR /src/app
+COPY src/ParentalControlsApp/ ./src/ParentalControlsApp/
+RUN dotnet publish src/ParentalControlsApp/ParentalControlsApp.csproj -c Release -o /src/app/publish && \
+    mkdir -p /src/app/dist && \
+    cd /src/app/publish && zip -r /src/app/dist/ParentalControlsApp.zip .
+
+# Copy integration test project
+COPY tests/ParentalControlsApp.IntegrationTests/ ./tests/ParentalControlsApp.IntegrationTests/
+WORKDIR /src/app/tests/ParentalControlsApp.IntegrationTests
+RUN dotnet restore
+
+# Testcontainers uses the Docker socket to launch sibling containers.
+# Run with: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock <image>
+CMD ["dotnet", "test", "--no-restore", "--logger", "console;verbosity=detailed"]

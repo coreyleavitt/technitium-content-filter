@@ -1,0 +1,27 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+
+# Clone repos as siblings (the expected layout), pinned to a known-good release
+RUN git clone --depth 1 --branch dns-server-v14.3.0 https://github.com/TechnitiumSoftware/TechnitiumLibrary.git /src/TechnitiumLibrary && \
+    git clone --depth 1 --branch v14.3.0 https://github.com/TechnitiumSoftware/DnsServer.git /src/DnsServer
+
+# Build only the TechnitiumLibrary projects we need
+RUN dotnet build /src/TechnitiumLibrary/TechnitiumLibrary/TechnitiumLibrary.csproj -c Release && \
+    dotnet build /src/TechnitiumLibrary/TechnitiumLibrary.Net/TechnitiumLibrary.Net.csproj -c Release
+
+# Build DnsServerCore.ApplicationCommon
+WORKDIR /src/DnsServer/DnsServerCore.ApplicationCommon
+RUN dotnet build -c Release
+
+# Copy app source
+WORKDIR /src/app
+COPY src/ParentalControlsApp/ ./src/ParentalControlsApp/
+
+# Copy test project
+COPY tests/ParentalControlsApp.Tests/ ./tests/ParentalControlsApp.Tests/
+
+# Fix project reference path (tests reference ../../src which is now ./src from /src/app)
+WORKDIR /src/app/tests/ParentalControlsApp.Tests
+RUN dotnet restore
+
+# Run tests
+CMD ["dotnet", "test", "--no-restore", "--logger", "console;verbosity=detailed", "--collect:XPlat Code Coverage"]

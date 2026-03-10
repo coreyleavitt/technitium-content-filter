@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/pro.txt",
+    "name": "Hagezi Pro (Ads + Tracking)",
+    "enabled": false,
+    "refreshHours": 24
+  },
+  {
+    "url": "https://big.oisd.nl/domainswild2",
+    "name": "OISD Big (Ads + Tracking)",
+    "enabled": false,
+    "refreshHours": 24
+  },
+  {
+    "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif.medium-onlydomains.txt",
+    "name": "Hagezi Threat Intelligence (Malware + Phishing)",
+    "enabled": false,
+    "refreshHours": 12
+  },
+  {
+    "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+    "name": "Steven Black Unified (Ads + Malware)",
+    "enabled": false,
+    "refreshHours": 24
+  },
+  {
+    "url": "https://nsfw.oisd.nl/domainswild2",
+    "name": "OISD NSFW (Adult Content)",
+    "enabled": false,
+    "refreshHours": 48
+  },
+  {
+    "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/gambling.medium-onlydomains.txt",
+    "name": "Hagezi Gambling",
+    "enabled": false,
+    "refreshHours": 48
+  },
+  {
+    "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/native.tiktok.txt",
+    "name": "Hagezi TikTok Trackers",
+    "enabled": false,
+    "refreshHours": 48
+  },
+  {
+    "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/doh-vpn-proxy-bypass-onlydomains.txt",
+    "name": "Hagezi DoH/VPN/Proxy Bypass Protection",
+    "enabled": false,
+    "refreshHours": 48
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/SmartTV.txt",
+    "name": "Perflyst Smart TV Trackers",
+    "enabled": false,
+    "refreshHours": 168
+  },
+  {
+    "url": "https://phishing.army/download/phishing_army_blocklist_extended.txt",
+    "name": "Phishing Army Extended",
+    "enabled": false,
+    "refreshHours": 12
+  },
+  {
+    "url": "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+    "name": "AdGuard DNS Filter",
+    "enabled": false,
+    "refreshHours": 24
+  },
+  {
+    "url": "https://adaway.org/hosts.txt",
+    "name": "AdAway Default (Mobile Ads)",
+    "enabled": false,
+    "refreshHours": 24
+  }
+]

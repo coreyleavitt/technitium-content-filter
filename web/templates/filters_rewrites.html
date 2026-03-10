@@ -1,0 +1,47 @@
+<%inherit file="base.html"/>
+<%def name="title()">DNS Rewrites</%def>
+<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {})})}</script>
+
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">DNS Rewrites</h1>
+        <p class="text-sm text-gray-500 mt-1">Per-profile domain rewrites. Map domains to IP addresses or CNAME targets.</p>
+    </div>
+
+    <div class="flex items-center space-x-3">
+        <label class="text-sm font-medium text-gray-700">Profile:</label>
+        <select id="profilePicker"
+            class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+        </select>
+    </div>
+
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Answer</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rewritesBody" class="divide-y divide-gray-200">
+            </tbody>
+        </table>
+        <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
+            <form id="addRewriteForm" class="flex items-center space-x-2">
+                <input type="text" id="newDomain" required placeholder="domain.com"
+                    class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono focus:border-indigo-500 focus:ring-indigo-500">
+                <input type="text" id="newAnswer" required placeholder="1.2.3.4 or target.com"
+                    class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono focus:border-indigo-500 focus:ring-indigo-500">
+                <button type="submit"
+                    class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                    Add
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<%def name="scripts()">
+<script src="${base_path}/static/js/filters-rewrites.js"></script>
+</%def>

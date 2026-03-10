@@ -1,0 +1,33 @@
+# Build outputs
+dist/
+bin/
+obj/
+*.dll
+*.pdb
+
+# IDE
+.vs/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reviews
+REVIEW*.md
+
+# Stryker mutation testing
+StrykerOutput/

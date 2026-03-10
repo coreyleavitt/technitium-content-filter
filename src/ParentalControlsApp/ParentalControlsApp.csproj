@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="DnsServerCore.ApplicationCommon">
+      <HintPath>/src/DnsServer/DnsServerCore.ApplicationCommon/bin/Release/DnsServerCore.ApplicationCommon.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="TechnitiumLibrary.Net">
+      <HintPath>/src/TechnitiumLibrary/bin/TechnitiumLibrary.Net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data/blocked-services.json" />
+    <EmbeddedResource Include="Data/default-blocklists.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParentalControlsApp.Tests" />
+  </ItemGroup>
+
+</Project>

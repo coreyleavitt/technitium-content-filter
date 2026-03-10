@@ -1,0 +1,797 @@
+{
+  "youtube": {
+    "name": "YouTube",
+    "domains": [
+      "youtube.com",
+      "youtu.be",
+      "ytimg.com",
+      "googlevideo.com",
+      "yt3.ggpht.com",
+      "youtube-nocookie.com",
+      "youtube-ui.l.google.com",
+      "youtubekids.com",
+      "yt.be",
+      "youtubei.googleapis.com",
+      "youtube.googleapis.com",
+      "wide-youtube.l.google.com"
+    ]
+  },
+  "tiktok": {
+    "name": "TikTok",
+    "domains": [
+      "tiktok.com",
+      "tiktokcdn.com",
+      "tiktokv.com",
+      "musical.ly",
+      "tiktokcdn-us.com",
+      "tiktok-row.com",
+      "tiktokcdn-in.com",
+      "byteoversea.com",
+      "bytecdn.cn",
+      "ibytedtos.com",
+      "ibyteimg.com",
+      "muscdn.com",
+      "bytedance.com",
+      "bytedance.net",
+      "tiktokcdn-eu.com"
+    ]
+  },
+  "facebook": {
+    "name": "Facebook",
+    "domains": [
+      "facebook.com",
+      "fbcdn.net",
+      "fb.com",
+      "facebook.net",
+      "fbsbx.com",
+      "fb.me",
+      "facebookcorewwwi.onion",
+      "accountkit.com",
+      "freebasics.com",
+      "internet.org"
+    ]
+  },
+  "instagram": {
+    "name": "Instagram",
+    "domains": [
+      "instagram.com",
+      "cdninstagram.com",
+      "ig.me",
+      "igsonar.com",
+      "igstorage.com",
+      "i.instagram.com"
+    ]
+  },
+  "whatsapp": {
+    "name": "WhatsApp",
+    "domains": [
+      "whatsapp.com",
+      "whatsapp.net",
+      "wa.me",
+      "waba.me"
+    ]
+  },
+  "snapchat": {
+    "name": "Snapchat",
+    "domains": [
+      "snapchat.com",
+      "snap.com",
+      "snapkit.co",
+      "bitmoji.com",
+      "sc-cdn.net",
+      "sc-static.net",
+      "sc-analytics.appspot.com",
+      "sc-gw.com",
+      "snapads.com",
+      "impala-media-production.s3.amazonaws.com"
+    ]
+  },
+  "twitter": {
+    "name": "X / Twitter",
+    "domains": [
+      "twitter.com",
+      "x.com",
+      "twimg.com",
+      "t.co",
+      "twitterstat.us",
+      "tweetdeck.com",
+      "twttr.com",
+      "twitter.jp",
+      "pscp.tv",
+      "periscope.tv"
+    ]
+  },
+  "reddit": {
+    "name": "Reddit",
+    "domains": [
+      "reddit.com",
+      "redd.it",
+      "redditstatic.com",
+      "redditmedia.com",
+      "reddit.map.fastly.net",
+      "redditspace.com"
+    ]
+  },
+  "discord": {
+    "name": "Discord",
+    "domains": [
+      "discord.com",
+      "discord.gg",
+      "discordapp.com",
+      "discord.media",
+      "discordapp.net",
+      "discord.new",
+      "discordstatus.com",
+      "dis.gd"
+    ]
+  },
+  "telegram": {
+    "name": "Telegram",
+    "domains": [
+      "telegram.org",
+      "t.me",
+      "telegram.me",
+      "telesco.pe",
+      "tdesktop.com",
+      "telegra.ph",
+      "telegram.dog"
+    ]
+  },
+  "signal": {
+    "name": "Signal",
+    "domains": [
+      "signal.org",
+      "signal.art",
+      "signal.group",
+      "whispersystems.org"
+    ]
+  },
+  "linkedin": {
+    "name": "LinkedIn",
+    "domains": [
+      "linkedin.com",
+      "licdn.com",
+      "linkedin.cn",
+      "lnkd.in"
+    ]
+  },
+  "pinterest": {
+    "name": "Pinterest",
+    "domains": [
+      "pinterest.com",
+      "pinimg.com",
+      "pin.it",
+      "pinterest.co.uk",
+      "pinterest.de",
+      "pinterest.fr"
+    ]
+  },
+  "tumblr": {
+    "name": "Tumblr",
+    "domains": [
+      "tumblr.com",
+      "txmblr.com",
+      "tmblr.co"
+    ]
+  },
+  "bluesky": {
+    "name": "Bluesky",
+    "domains": [
+      "bsky.app",
+      "bsky.social",
+      "bsky.network",
+      "bsky.team"
+    ]
+  },
+  "mastodon": {
+    "name": "Mastodon",
+    "domains": [
+      "mastodon.social",
+      "mastodon.online",
+      "mstdn.social",
+      "joinmastodon.org"
+    ]
+  },
+  "twitch": {
+    "name": "Twitch",
+    "domains": [
+      "twitch.tv",
+      "twitchcdn.net",
+      "twitchsvc.net",
+      "jtvnw.net",
+      "ttvnw.net",
+      "ext-twitch.tv",
+      "twitchstatic.com"
+    ]
+  },
+  "netflix": {
+    "name": "Netflix",
+    "domains": [
+      "netflix.com",
+      "nflxvideo.net",
+      "nflximg.net",
+      "nflxext.com",
+      "nflxso.net",
+      "netflix.net",
+      "fast.com"
+    ]
+  },
+  "disneyplus": {
+    "name": "Disney+",
+    "domains": [
+      "disneyplus.com",
+      "disney-plus.net",
+      "bamgrid.com",
+      "dssott.com",
+      "disney.io",
+      "disneystreaming.com",
+      "registerdisney.go.com",
+      "cdn.registerdisney.go.com"
+    ]
+  },
+  "hulu": {
+    "name": "Hulu",
+    "domains": [
+      "hulu.com",
+      "hulustream.com",
+      "huluim.com",
+      "hulu.hb.omtrdc.net"
+    ]
+  },
+  "hbomax": {
+    "name": "HBO / Max",
+    "domains": [
+      "hbomax.com",
+      "max.com",
+      "maxgo.com",
+      "hbo.com",
+      "play.hbomax.com",
+      "api.hbo.com"
+    ]
+  },
+  "primevideo": {
+    "name": "Prime Video",
+    "domains": [
+      "primevideo.com",
+      "aiv-cdn.net",
+      "aiv-delivery.net",
+      "atv-ps.amazon.com",
+      "dmqdd6hw24ucf.cloudfront.net"
+    ]
+  },
+  "spotify": {
+    "name": "Spotify",
+    "domains": [
+      "spotify.com",
+      "spotifycdn.com",
+      "scdn.co",
+      "spoti.fi",
+      "spotify.design",
+      "audio-ak-spotify-com.akamaized.net"
+    ]
+  },
+  "applemusic": {
+    "name": "Apple Music",
+    "domains": [
+      "music.apple.com",
+      "itunes.apple.com",
+      "is1-ssl.mzstatic.com",
+      "is2-ssl.mzstatic.com",
+      "is3-ssl.mzstatic.com",
+      "is4-ssl.mzstatic.com",
+      "is5-ssl.mzstatic.com"
+    ]
+  },
+  "soundcloud": {
+    "name": "SoundCloud",
+    "domains": [
+      "soundcloud.com",
+      "sndcdn.com",
+      "soundcloud.app.goo.gl"
+    ]
+  },
+  "deezer": {
+    "name": "Deezer",
+    "domains": [
+      "deezer.com",
+      "dzcdn.net"
+    ]
+  },
+  "crunchyroll": {
+    "name": "Crunchyroll",
+    "domains": [
+      "crunchyroll.com",
+      "vrv.co",
+      "img1.ak.crunchyroll.com"
+    ]
+  },
+  "plex": {
+    "name": "Plex",
+    "domains": [
+      "plex.tv",
+      "plex.direct",
+      "plexapp.com"
+    ]
+  },
+  "vimeo": {
+    "name": "Vimeo",
+    "domains": [
+      "vimeo.com",
+      "vimeocdn.com",
+      "player.vimeo.com"
+    ]
+  },
+  "dailymotion": {
+    "name": "Dailymotion",
+    "domains": [
+      "dailymotion.com",
+      "dm-event.net",
+      "dmcdn.net"
+    ]
+  },
+  "tidal": {
+    "name": "Tidal",
+    "domains": [
+      "tidal.com",
+      "tidalhifi.com",
+      "listen.tidal.com"
+    ]
+  },
+  "peacock": {
+    "name": "Peacock",
+    "domains": [
+      "peacocktv.com",
+      "nbcuni.com"
+    ]
+  },
+  "paramountplus": {
+    "name": "Paramount+",
+    "domains": [
+      "paramountplus.com",
+      "cbsi.com",
+      "cbsaavideo.com"
+    ]
+  },
+  "steam": {
+    "name": "Steam",
+    "domains": [
+      "steampowered.com",
+      "steamcommunity.com",
+      "steamstatic.com",
+      "steamcdn-a.akamaihd.net",
+      "steamusercontent.com",
+      "steamgames.com",
+      "steamcontent.com",
+      "steamstore-a.akamaihd.net",
+      "store.steampowered.com"
+    ]
+  },
+  "epicgames": {
+    "name": "Epic Games",
+    "domains": [
+      "epicgames.com",
+      "epicgames.dev",
+      "unrealengine.com",
+      "fortnite.com",
+      "easy.ac",
+      "easyanticheat.net",
+      "ol.epicgames.com"
+    ]
+  },
+  "roblox": {
+    "name": "Roblox",
+    "domains": [
+      "roblox.com",
+      "rbxcdn.com",
+      "rbx.com",
+      "robloxlabs.com",
+      "roblox.qq.com",
+      "rbxtrk.com",
+      "robloxusercontent.com"
+    ]
+  },
+  "minecraft": {
+    "name": "Minecraft",
+    "domains": [
+      "minecraft.net",
+      "mojang.com",
+      "minecraftservices.com",
+      "minecraftprod.rtep.msgamestudios.com"
+    ]
+  },
+  "xbox": {
+    "name": "Xbox Live",
+    "domains": [
+      "xbox.com",
+      "xboxlive.com",
+      "xboxservices.com",
+      "xboxab.com",
+      "xboxcontent.com",
+      "gamepass.com"
+    ]
+  },
+  "playstation": {
+    "name": "PlayStation",
+    "domains": [
+      "playstation.com",
+      "playstation.net",
+      "sonyentertainmentnetwork.com",
+      "sie.com",
+      "sony.com",
+      "sony.net"
+    ]
+  },
+  "nintendo": {
+    "name": "Nintendo",
+    "domains": [
+      "nintendo.com",
+      "nintendo.net",
+      "nintendoswitch.com",
+      "nintendo-europe.com",
+      "nintendo.co.jp",
+      "nso.nintendo.net"
+    ]
+  },
+  "ea": {
+    "name": "Electronic Arts",
+    "domains": [
+      "ea.com",
+      "origin.com",
+      "tnt-ea.com",
+      "eaplay.com"
+    ]
+  },
+  "riot": {
+    "name": "Riot Games",
+    "domains": [
+      "riotgames.com",
+      "leagueoflegends.com",
+      "riotcdn.net",
+      "valorant-api.com",
+      "playvalorant.com",
+      "leagueoflegends.co.uk"
+    ]
+  },
+  "ubisoft": {
+    "name": "Ubisoft",
+    "domains": [
+      "ubisoft.com",
+      "ubi.com",
+      "uplaypc.com"
+    ]
+  },
+  "activision": {
+    "name": "Activision Blizzard",
+    "domains": [
+      "activision.com",
+      "blizzard.com",
+      "battle.net",
+      "blizzard.cn",
+      "blz-contentstack.com",
+      "callofduty.com"
+    ]
+  },
+  "gog": {
+    "name": "GOG",
+    "domains": [
+      "gog.com",
+      "gogalaxy.com"
+    ]
+  },
+  "chatgpt": {
+    "name": "ChatGPT / OpenAI",
+    "domains": [
+      "openai.com",
+      "chatgpt.com",
+      "chat.openai.com",
+      "oaiusercontent.com",
+      "oaistatic.com",
+      "auth0.openai.com"
+    ]
+  },
+  "gemini": {
+    "name": "Gemini / Google AI",
+    "domains": [
+      "gemini.google.com",
+      "bard.google.com",
+      "generativelanguage.googleapis.com",
+      "alkalimakersuite-pa.clients6.google.com",
+      "deepmind.com",
+      "deepmind.google"
+    ]
+  },
+  "copilot": {
+    "name": "Microsoft Copilot",
+    "domains": [
+      "copilot.microsoft.com",
+      "bing.com",
+      "sydney.bing.com",
+      "edgeservices.bing.com"
+    ]
+  },
+  "claude": {
+    "name": "Claude / Anthropic",
+    "domains": [
+      "anthropic.com",
+      "claude.ai"
+    ]
+  },
+  "perplexity": {
+    "name": "Perplexity",
+    "domains": [
+      "perplexity.ai"
+    ]
+  },
+  "amazon": {
+    "name": "Amazon Shopping",
+    "domains": [
+      "amazon.com",
+      "amazon.co.uk",
+      "amazon.de",
+      "amazon.fr",
+      "amazon.ca",
+      "amazon.in",
+      "amazon.com.au",
+      "ssl-images-amazon.com",
+      "media-amazon.com",
+      "images-amazon.com"
+    ]
+  },
+  "ebay": {
+    "name": "eBay",
+    "domains": [
+      "ebay.com",
+      "ebay.co.uk",
+      "ebay.de",
+      "ebaystatic.com",
+      "ebayimg.com",
+      "ebay.fr",
+      "ebayrtm.com"
+    ]
+  },
+  "temu": {
+    "name": "Temu",
+    "domains": [
+      "temu.com",
+      "temustatic.com",
+      "kwcdn.com"
+    ]
+  },
+  "shein": {
+    "name": "Shein",
+    "domains": [
+      "shein.com",
+      "shein.co.uk",
+      "sheinside.com",
+      "sheinsz.com"
+    ]
+  },
+  "aliexpress": {
+    "name": "AliExpress",
+    "domains": [
+      "aliexpress.com",
+      "aliexpress.us",
+      "aliimg.com",
+      "alicdn.com"
+    ]
+  },
+  "tinder": {
+    "name": "Tinder",
+    "domains": [
+      "tinder.com",
+      "gotinder.com",
+      "tindersparks.com"
+    ]
+  },
+  "bumble": {
+    "name": "Bumble",
+    "domains": [
+      "bumble.com",
+      "thebeehive.bumble.com"
+    ]
+  },
+  "onlyfans": {
+    "name": "OnlyFans",
+    "domains": [
+      "onlyfans.com",
+      "of.com",
+      "ofcdn.com"
+    ]
+  },
+  "dropbox": {
+    "name": "Dropbox",
+    "domains": [
+      "dropbox.com",
+      "dropboxapi.com",
+      "dropboxusercontent.com",
+      "dropboxstatic.com",
+      "db.tt"
+    ]
+  },
+  "imgur": {
+    "name": "Imgur",
+    "domains": [
+      "imgur.com",
+      "i.imgur.com"
+    ]
+  },
+  "9gag": {
+    "name": "9GAG",
+    "domains": [
+      "9gag.com",
+      "9cache.com"
+    ]
+  },
+  "4chan": {
+    "name": "4chan",
+    "domains": [
+      "4chan.org",
+      "4channel.org",
+      "4cdn.org"
+    ]
+  },
+  "bilibili": {
+    "name": "Bilibili",
+    "domains": [
+      "bilibili.com",
+      "bilivideo.com",
+      "biliapi.com",
+      "biliapi.net",
+      "hdslb.com"
+    ]
+  },
+  "wechat": {
+    "name": "WeChat",
+    "domains": [
+      "wechat.com",
+      "weixin.qq.com",
+      "wx.qq.com",
+      "weixinbridge.com"
+    ]
+  },
+  "slack": {
+    "name": "Slack",
+    "domains": [
+      "slack.com",
+      "slack-edge.com",
+      "slack-msgs.com",
+      "slack-imgs.com",
+      "slack-files.com",
+      "slack-core.com"
+    ]
+  },
+  "teams": {
+    "name": "Microsoft Teams",
+    "domains": [
+      "teams.microsoft.com",
+      "teams.live.com",
+      "statics.teams.cdn.office.net"
+    ]
+  },
+  "skype": {
+    "name": "Skype",
+    "domains": [
+      "skype.com",
+      "skypeassets.com",
+      "skypedata.akadns.net"
+    ]
+  },
+  "zoom": {
+    "name": "Zoom",
+    "domains": [
+      "zoom.us",
+      "zoom.com",
+      "zoomgov.com",
+      "zoomplatform.com",
+      "zoomcdn.com"
+    ]
+  },
+  "kickstreaming": {
+    "name": "Kick",
+    "domains": [
+      "kick.com",
+      "kickstatic.com"
+    ]
+  },
+  "porn": {
+    "name": "Adult Content",
+    "domains": [
+      "pornhub.com",
+      "phncdn.com",
+      "xvideos.com",
+      "xvideos-cdn.com",
+      "xhamster.com",
+      "xhcdn.com",
+      "xnxx.com",
+      "xnxx-cdn.com",
+      "redtube.com",
+      "youporn.com",
+      "spankbang.com",
+      "stripchat.com",
+      "chaturbate.com",
+      "livejasmin.com",
+      "cam4.com",
+      "bongacams.com",
+      "fansly.com",
+      "brazzers.com",
+      "realitykings.com",
+      "bangbros.com",
+      "naughtyamerica.com",
+      "tube8.com",
+      "beeg.com",
+      "eporner.com",
+      "tnaflix.com",
+      "hqporner.com",
+      "motherless.com",
+      "thumbzilla.com",
+      "ixxx.com",
+      "txxx.com",
+      "fuq.com",
+      "4tube.com",
+      "drtuber.com",
+      "porn.com",
+      "sex.com",
+      "fapello.com",
+      "rule34.xxx",
+      "rule34.paheal.net",
+      "e-hentai.org",
+      "nhentai.net",
+      "hanime.tv",
+      "hentaihaven.xxx",
+      "jerkmate.com",
+      "myfreecams.com",
+      "camsoda.com",
+      "flirt4free.com",
+      "streamate.com",
+      "imlive.com",
+      "ypncdn.com",
+      "rdtcdn.com",
+      "pornmd.com",
+      "faphouse.com",
+      "pornpics.com",
+      "imagefap.com",
+      "literotica.com",
+      "digitalplayground.com",
+      "mofos.com",
+      "porntube.com",
+      "vporn.com",
+      "bellesa.co"
+    ]
+  },
+  "gambling": {
+    "name": "Gambling",
+    "domains": [
+      "bet365.com",
+      "draftkings.com",
+      "fanduel.com",
+      "betmgm.com",
+      "caesars.com",
+      "pokerstars.com",
+      "888.com",
+      "williamhill.com",
+      "betfair.com",
+      "paddypower.com",
+      "bwin.com",
+      "unibet.com",
+      "bovada.lv",
+      "betonline.ag",
+      "betway.com",
+      "stake.com",
+      "pointsbet.com",
+      "barstoolsportsbook.com",
+      "wynnbet.com",
+      "betrivers.com",
+      "twinspires.com",
+      "hardrock.bet",
+      "espnbet.com"
+    ]
+  },
+  "creality-cloud": {
+    "name": "Creality Cloud",
+    "domains": [
+      "crealitycloud.com",
+      "crealitycloud.cn",
+      "cxsw3d.com"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+<%inherit file="base.html"/>
+<%def name="title()">DNS Allowlists</%def>
+<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {})})}</script>
+
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">DNS Allowlists</h1>
+        <p class="text-sm text-gray-500 mt-1">Domains that are always allowed for a profile, overriding all blocking rules.</p>
+    </div>
+
+    <div class="flex items-center space-x-3">
+        <label class="text-sm font-medium text-gray-700">Profile:</label>
+        <select id="profilePicker"
+            class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+        </select>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <textarea id="allowListText" rows="15" placeholder="one domain per line&#10;safe-site.com&#10;school.edu"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"></textarea>
+        <div class="mt-3 flex justify-between items-center">
+            <span id="domainCount" class="text-xs text-gray-400"></span>
+            <button onclick="saveAllowList()"
+                class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<%def name="scripts()">
+<script src="${base_path}/static/js/filters-allowlists.js"></script>
+</%def>

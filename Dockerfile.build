@@ -1,0 +1,27 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+
+# Clone repos as siblings (the expected layout), pinned to a known-good release
+RUN git clone --depth 1 --branch dns-server-v14.3.0 https://github.com/TechnitiumSoftware/TechnitiumLibrary.git /src/TechnitiumLibrary && \
+    git clone --depth 1 --branch v14.3.0 https://github.com/TechnitiumSoftware/DnsServer.git /src/DnsServer
+
+# Build only the TechnitiumLibrary projects we need (Firewall is Windows-only)
+RUN dotnet build /src/TechnitiumLibrary/TechnitiumLibrary/TechnitiumLibrary.csproj -c Release && \
+    dotnet build /src/TechnitiumLibrary/TechnitiumLibrary.Net/TechnitiumLibrary.Net.csproj -c Release
+# DLLs are output to /src/TechnitiumLibrary/bin/ by the project's OutputPath
+
+# Build DnsServerCore.ApplicationCommon
+WORKDIR /src/DnsServer/DnsServerCore.ApplicationCommon
+RUN dotnet build -c Release
+
+# Copy our app source and build it
+WORKDIR /src/app
+COPY src/ParentalControlsApp/ ./
+RUN dotnet restore
+RUN dotnet publish -c Release -o /out --no-restore
+
+FROM build AS package
+RUN apt-get update -qq && apt-get install -y -qq zip > /dev/null 2>&1
+RUN cd /out && zip -r /ParentalControlsApp.zip .
+
+FROM scratch AS export
+COPY --from=package /ParentalControlsApp.zip /
