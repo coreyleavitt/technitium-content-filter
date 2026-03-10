@@ -36,7 +36,8 @@ jobs:
         run: uv sync --group docs
 
       - name: Build docs
-        run: uv run --directory web mkdocs build -f mkdocs.yml -d site
+        working-directory: web
+        run: uv run mkdocs build -f ../mkdocs.yml -d ${{ github.workspace }}/site
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v4
