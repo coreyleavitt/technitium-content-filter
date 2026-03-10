@@ -2,17 +2,25 @@ const pageData = JSON.parse(document.getElementById('page-data').textContent);
 const clients = pageData.clients;
 const profileNames = pageData.profileNames;
 
+// #82: Cache DOM elements
+const clientsListEl = document.getElementById('clientsList');
+const clientModalEl = document.getElementById('clientModal');
+const clientModalTitleEl = document.getElementById('clientModalTitle');
+const editIndexEl = document.getElementById('editIndex');
+const clientNameEl = document.getElementById('clientName');
+const clientIdsEl = document.getElementById('clientIds');
+const clientProfileEl = document.getElementById('clientProfile');
+const clientFormEl = document.getElementById('clientForm');
+
 function renderClients() {
-    const container = document.getElementById('clientsList');
     if (clients.length === 0) {
-        container.innerHTML = '<div class="text-center py-12 bg-white rounded-lg shadow"><p class="text-gray-500">No clients configured. Add a device to assign it a filtering profile.</p></div>';
+        clientsListEl.innerHTML = '<div class="text-center py-12 bg-white rounded-lg shadow"><p class="text-gray-500">No clients configured. Add a device to assign it a filtering profile.</p></div>';
         return;
     }
 
     let rows = '';
     for (let i = 0; i < clients.length; i++) {
         const client = clients[i];
-        const ids = (client.ids || []).join(', ');
         const hasProfile = client.profile && profileNames.includes(client.profile);
         let profileBadge;
         if (hasProfile) {
@@ -23,9 +31,12 @@ function renderClients() {
             profileBadge = '<span class="text-sm text-gray-400">Unassigned</span>';
         }
 
-        const idBadges = (client.ids || []).map(id => {
+        const idBadges = (client.ids || []).map(function (id) {
             const isCidr = id.includes('/');
-            const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(id) || id.includes(':') && !id.includes('.');
+            // #86: Proper IPv6 detection using colon check
+            const isIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(id);
+            const isIpv6 = /^[0-9a-fA-F:]+$/.test(id) && id.includes(':');
+            const isIp = isIpv4 || isIpv6;
             let cls;
             if (isCidr) {
                 cls = 'bg-amber-50 text-amber-700';
@@ -37,6 +48,8 @@ function renderClients() {
             return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium font-mono ' + cls + '">' + escapeHtml(id) + '</span>';
         }).join(' ');
 
+        // #73: Use client name/IDs as identifier instead of array index
+        const clientIdentifier = escapeHtml(client.name || (client.ids || []).join(','));
         rows += '<tr>' +
             '<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' + escapeHtml(client.name || 'Unnamed') + '</td>' +
             '<td class="px-6 py-4"><div class="flex flex-wrap gap-1">' + (idBadges || '<span class="text-sm text-gray-400">None</span>') + '</div></td>' +
@@ -47,7 +60,7 @@ function renderClients() {
             '</td></tr>';
     }
 
-    container.innerHTML = '<div class="bg-white shadow rounded-lg overflow-hidden">' +
+    clientsListEl.innerHTML = '<div class="bg-white shadow rounded-lg overflow-hidden">' +
         '<table class="min-w-full divide-y divide-gray-200">' +
         '<thead class="bg-gray-50"><tr>' +
         '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>' +
@@ -60,56 +73,75 @@ function renderClients() {
 renderClients();
 
 function populateProfileSelect(selected) {
-    const sel = document.getElementById('clientProfile');
-    sel.innerHTML = '<option value="">No profile</option>';
-    profileNames.forEach(p => {
+    clientProfileEl.innerHTML = '<option value="">No profile</option>';
+    profileNames.forEach(function (p) {
         const opt = document.createElement('option');
         opt.value = p;
         opt.textContent = p;
         if (p === selected) opt.selected = true;
-        sel.appendChild(opt);
+        clientProfileEl.appendChild(opt);
     });
 }
 
 function openClientModal(index) {
     const client = (index !== undefined) ? clients[index] : null;
-    document.getElementById('clientModalTitle').textContent = client ? 'Edit Client' : 'Add Client';
-    document.getElementById('editIndex').value = (index !== undefined) ? index : '';
-    document.getElementById('clientName').value = client?.name || '';
-    document.getElementById('clientIds').value = (client?.ids || []).join('\n');
+    clientModalTitleEl.textContent = client ? 'Edit Client' : 'Add Client';
+    editIndexEl.value = (index !== undefined) ? index : '';
+    clientNameEl.value = client?.name || '';
+    clientIdsEl.value = (client?.ids || []).join('\n');
     populateProfileSelect(client?.profile || '');
-    document.getElementById('clientModal').classList.remove('hidden');
+    clientModalEl.classList.remove('hidden');
 }
 
 function closeClientModal() {
-    document.getElementById('clientModal').classList.add('hidden');
+    clientModalEl.classList.add('hidden');
 }
 
+// #73: Delete using client name/IDs identifier; #81: confirmation dialog
 async function deleteClient(index) {
     const client = clients[index];
     const label = client.name || (client.ids || []).join(', ') || 'this client';
     if (!confirm('Remove ' + label + '?')) return;
-    await apiCall('DELETE', '/api/clients', { index });
-    location.reload();
+    try {
+        await apiCall('DELETE', API_PATHS.clients, { name: client.name, ids: client.ids });
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    }
 }
 
-document.getElementById('clientForm').addEventListener('submit', async (e) => {
+// #72: Form validation; #76: Loading states; #78: Debounce via setButtonLoading
+clientFormEl.addEventListener('submit', async function handleClientSubmit(e) {
     e.preventDefault();
-    const editIndex = document.getElementById('editIndex').value;
-    const idsText = document.getElementById('clientIds').value.trim();
-    const ids = idsText.split('\n').map(s => s.trim()).filter(Boolean);
-    if (ids.length === 0) return;
+    const editIndex = editIndexEl.value;
+    const idsText = clientIdsEl.value.trim();
+    const ids = idsText.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+
+    // #72: Validate required fields
+    if (ids.length === 0) {
+        showToast('At least one identifier (IP, CIDR, or client ID) is required.', 'error');
+        return;
+    }
+
+    const submitBtn = clientFormEl.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, true);
 
     const payload = {
-        name: document.getElementById('clientName').value.trim(),
+        name: clientNameEl.value.trim(),
         ids: ids,
-        profile: document.getElementById('clientProfile').value,
+        profile: clientProfileEl.value,
     };
 
     if (editIndex !== '') {
         payload.index = parseInt(editIndex, 10);
     }
 
-    await apiCall('POST', '/api/clients', payload);
-    location.reload();
+    try {
+        await apiCall('POST', API_PATHS.clients, payload);
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save');
+    }
 });

@@ -1,18 +1,34 @@
 const config = JSON.parse(document.getElementById('page-data').textContent);
 let blocking = config.enableBlocking;
 
-// Auto-detect timezone from browser if the config still has the default (UTC)
+// #82: Cache DOM elements
+const tzSelectEl = document.getElementById('timeZone');
+const toggleBlockingBtn = document.getElementById('toggleBlocking');
+const settingsFormEl = document.getElementById('settingsForm');
+
+// #90: Shared settings payload builder
+function buildSettingsPayload(overrides) {
+    return Object.assign({
+        enableBlocking: blocking,
+        timeZone: config.timeZone,
+        defaultProfile: config.defaultProfile,
+        baseProfile: config.baseProfile || null,
+        scheduleAllDay: config.scheduleAllDay ?? true,
+    }, overrides || {});
+}
+
+// #80: Await timezone auto-save and handle errors
 const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const effectiveTz = (!config.timeZone || config.timeZone === 'UTC') ? browserTz : config.timeZone;
 if ((!config.timeZone || config.timeZone === 'UTC') && browserTz && browserTz !== 'UTC') {
     config.timeZone = browserTz;
-    apiCall('POST', '/api/settings', {
-        enableBlocking: config.enableBlocking,
-        timeZone: browserTz,
-        defaultProfile: config.defaultProfile,
-        baseProfile: config.baseProfile || null,
-        scheduleAllDay: config.scheduleAllDay ?? true,
-    });
+    (async function () {
+        try {
+            await apiCall('POST', API_PATHS.settings, buildSettingsPayload({ timeZone: browserTz }));
+        } catch (err) {
+            console.error('Failed to auto-save timezone:', err);
+        }
+    })();
 }
 
 // Populate timezone dropdown
@@ -21,7 +37,6 @@ const commonTimezones = [
     'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu', 'America/Boise',
     'America/Detroit', 'America/Indiana/Indianapolis',
 ];
-const tzSelect = document.getElementById('timeZone');
 let allTz;
 try {
     allTz = Intl.supportedValuesOf('timeZone');
@@ -36,31 +51,39 @@ for (const tz of [...commonTimezones, ...allTz]) {
     opt.value = tz;
     opt.textContent = tz.replace(/_/g, ' ');
     if (tz === effectiveTz) opt.selected = true;
-    tzSelect.appendChild(opt);
+    tzSelectEl.appendChild(opt);
 }
 
-// Protection toggle -- saves immediately
-document.getElementById('toggleBlocking').addEventListener('click', async () => {
+// Protection toggle -- saves immediately; #76: loading state
+toggleBlockingBtn.addEventListener('click', async function handleToggleBlocking() {
+    setButtonLoading(toggleBlockingBtn, true, 'Saving...');
     blocking = !blocking;
-    await apiCall('POST', '/api/settings', {
-        enableBlocking: blocking,
-        timeZone: config.timeZone,
-        defaultProfile: config.defaultProfile,
-        baseProfile: config.baseProfile || null,
-        scheduleAllDay: config.scheduleAllDay ?? true,
-    });
-    location.reload();
+    try {
+        await apiCall('POST', API_PATHS.settings, buildSettingsPayload());
+        location.reload();
+    } catch (err) {
+        blocking = !blocking; // revert on failure
+    } finally {
+        setButtonLoading(toggleBlockingBtn, false);
+    }
 });
 
-// Settings form
-document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+// Settings form; #76: loading state
+settingsFormEl.addEventListener('submit', async function handleSettingsSave(e) {
     e.preventDefault();
-    await apiCall('POST', '/api/settings', {
-        enableBlocking: blocking,
-        timeZone: document.getElementById('timeZone').value,
-        defaultProfile: document.getElementById('defaultProfile').value || null,
-        baseProfile: document.getElementById('baseProfile').value || null,
-        scheduleAllDay: document.getElementById('scheduleAllDay').checked,
-    });
-    location.reload();
+    const submitBtn = settingsFormEl.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, true);
+    try {
+        await apiCall('POST', API_PATHS.settings, buildSettingsPayload({
+            timeZone: tzSelectEl.value,
+            defaultProfile: document.getElementById('defaultProfile').value || null,
+            baseProfile: document.getElementById('baseProfile').value || null,
+            scheduleAllDay: document.getElementById('scheduleAllDay').checked,
+        }));
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save Settings');
+    }
 });

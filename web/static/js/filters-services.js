@@ -2,23 +2,32 @@ const pageData = JSON.parse(document.getElementById('page-data').textContent);
 const builtinServices = pageData.builtinServices;
 let customServices = pageData.customServices || {};
 
+// #82: Cache DOM elements
+const customServicesListEl = document.getElementById('customServicesList');
+const serviceModalEl = document.getElementById('serviceModal');
+const serviceModalTitleEl = document.getElementById('serviceModalTitle');
+const originalServiceIdEl = document.getElementById('originalServiceId');
+const serviceIdEl = document.getElementById('serviceId');
+const serviceNameEl = document.getElementById('serviceName');
+const serviceDomainsEl = document.getElementById('serviceDomains');
+const serviceFormEl = document.getElementById('serviceForm');
+
 function renderCustomServices() {
-    const container = document.getElementById('customServicesList');
     const entries = Object.entries(customServices);
 
     if (entries.length === 0) {
-        container.innerHTML = '<div class="text-center py-8 bg-white rounded-lg shadow"><p class="text-gray-500">No custom services defined. Use the button above to add one.</p></div>';
+        customServicesListEl.innerHTML = '<div class="text-center py-8 bg-white rounded-lg shadow"><p class="text-gray-500">No custom services defined. Use the button above to add one.</p></div>';
         return;
     }
 
     let html = '<div class="bg-white shadow rounded-lg overflow-hidden"><div class="px-6 py-4 border-b border-gray-200"><h3 class="text-sm font-semibold text-gray-900">Custom Services (' + entries.length + ')</h3></div>';
     html += '<div class="divide-y divide-gray-200">';
 
-    for (const [id, svc] of entries.sort((a, b) => a[1].name.localeCompare(b[1].name))) {
+    for (const [id, svc] of entries.sort(function (a, b) { return a[1].name.localeCompare(b[1].name); })) {
         const domains = svc.domains || [];
-        const domainPreview = domains.slice(0, 5).map(d =>
-            '<span class="text-xs font-mono text-gray-500 bg-gray-50 px-1 rounded">' + escapeHtml(d) + '</span>'
-        ).join('');
+        const domainPreview = domains.slice(0, 5).map(function (d) {
+            return '<span class="text-xs font-mono text-gray-500 bg-gray-50 px-1 rounded">' + escapeHtml(d) + '</span>';
+        }).join('');
         const more = domains.length > 5 ? '<span class="text-xs text-gray-400">+' + (domains.length - 5) + ' more</span>' : '';
 
         html += '<div class="px-6 py-4">' +
@@ -37,57 +46,86 @@ function renderCustomServices() {
     }
 
     html += '</div></div>';
-    container.innerHTML = html;
+    customServicesListEl.innerHTML = html;
 }
 renderCustomServices();
 
-document.getElementById('customServicesList').addEventListener('click', (e) => {
+// #89: Named handler
+function handleServiceClick(e) {
     const editBtn = e.target.closest('[data-edit-svc]');
     if (editBtn) { openServiceModal(editBtn.dataset.editSvc); return; }
     const deleteBtn = e.target.closest('[data-delete-svc]');
     if (deleteBtn) { deleteService(deleteBtn.dataset.deleteSvc); }
-});
+}
+customServicesListEl.addEventListener('click', handleServiceClick);
 
 function openServiceModal(id) {
     const svc = id ? customServices[id] : null;
-    document.getElementById('serviceModalTitle').textContent = id ? 'Edit Custom Service' : 'Add Custom Service';
-    document.getElementById('originalServiceId').value = id || '';
-    document.getElementById('serviceId').value = id || '';
-    document.getElementById('serviceId').readOnly = !!id;
-    document.getElementById('serviceName').value = svc?.name || '';
-    document.getElementById('serviceDomains').value = (svc?.domains || []).join('\n');
-    document.getElementById('serviceModal').classList.remove('hidden');
+    serviceModalTitleEl.textContent = id ? 'Edit Custom Service' : 'Add Custom Service';
+    originalServiceIdEl.value = id || '';
+    serviceIdEl.value = id || '';
+    serviceIdEl.readOnly = !!id;
+    serviceNameEl.value = svc?.name || '';
+    serviceDomainsEl.value = (svc?.domains || []).join('\n');
+    serviceModalEl.classList.remove('hidden');
 }
 
 function closeServiceModal() {
-    document.getElementById('serviceModal').classList.add('hidden');
+    serviceModalEl.classList.add('hidden');
 }
 
+// #81: Confirmation already existed here
 async function deleteService(id) {
     if (!confirm('Delete custom service "' + id + '"?')) return;
-    await apiCall('DELETE', '/api/custom-services', { id });
-    location.reload();
+    try {
+        await apiCall('DELETE', API_PATHS.customServices, { id });
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    }
 }
 
-document.getElementById('serviceForm').addEventListener('submit', async (e) => {
+// #72: Validation; #76: loading states
+serviceFormEl.addEventListener('submit', async function handleServiceSubmit(e) {
     e.preventDefault();
-    const originalId = document.getElementById('originalServiceId').value;
-    const id = document.getElementById('serviceId').value.trim().toLowerCase();
-    if (!id) return;
+    const originalId = originalServiceIdEl.value;
+    const id = serviceIdEl.value.trim().toLowerCase();
 
-    if (!originalId && builtinServices[id]) {
-        alert('Cannot use ID "' + id + '" -- it conflicts with a built-in service.');
+    // #72: Validate required fields
+    if (!id) {
+        showToast('Service ID is required.', 'error');
         return;
     }
 
-    const name = document.getElementById('serviceName').value.trim();
-    const domains = document.getElementById('serviceDomains').value
-        .split('\n').map(s => s.trim()).filter(Boolean);
-
-    if (originalId && originalId !== id) {
-        await apiCall('DELETE', '/api/custom-services', { id: originalId });
+    if (!originalId && builtinServices[id]) {
+        showToast('Cannot use ID "' + id + '" -- it conflicts with a built-in service.', 'error');
+        return;
     }
 
-    await apiCall('POST', '/api/custom-services', { id, name, domains });
-    location.reload();
+    const name = serviceNameEl.value.trim();
+    if (!name) {
+        showToast('Service name is required.', 'error');
+        return;
+    }
+
+    const domains = serviceDomainsEl.value
+        .split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    if (domains.length === 0) {
+        showToast('At least one domain is required.', 'error');
+        return;
+    }
+
+    const submitBtn = serviceFormEl.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, true);
+    try {
+        if (originalId && originalId !== id) {
+            await apiCall('DELETE', API_PATHS.customServices, { id: originalId });
+        }
+        await apiCall('POST', API_PATHS.customServices, { id, name, domains });
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save');
+    }
 });
