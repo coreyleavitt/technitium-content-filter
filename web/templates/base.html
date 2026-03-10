@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="base-path" content="${base_path}">
-    <title>Content Filter - ${self.title()}</title>
+    <title>Content Filter - ${self.title() | n}</title>
     <link rel="stylesheet" href="${base_path}/static/css/styles.css">
     <script>
     // Apply theme immediately to prevent flash
@@ -163,7 +163,7 @@
 
         <main>
             <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                ${self.body()}
+                ${self.body() | n}
             </div>
         </main>
 
@@ -247,7 +247,7 @@
         }
     });
     </script>
-    ${self.scripts()}
+    ${self.scripts() | n}
 </body>
 </html>
 

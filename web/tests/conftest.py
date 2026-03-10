@@ -7,6 +7,18 @@ from httpx import Response
 from starlette.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def _clear_rate_limit():
+    """Clear rate limiter state between tests to prevent cross-test interference."""
+    import app as app_module
+
+    if hasattr(app_module, "_rate_limit_buckets"):
+        app_module._rate_limit_buckets.clear()
+    yield
+    if hasattr(app_module, "_rate_limit_buckets"):
+        app_module._rate_limit_buckets.clear()
+
+
 @pytest.fixture()
 def tmp_config(tmp_path):
     """Temporary config directory with config path and blocked-services.json."""
