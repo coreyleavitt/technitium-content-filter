@@ -163,13 +163,13 @@ public class RewriteCollisionTests : IDisposable
         await app.IsAllowedAsync(req1, EP("10.0.0.1"));
         await app.IsAllowedAsync(req2, EP("10.0.0.2"));
 
-        // First ProcessRequest consumes the entry
+        // With composite keys ({requestId}:{clientIp}), each client has its own entry
         var resp1 = await app.ProcessRequestAsync(req1, EP("10.0.0.1"));
         Assert.Equal(DnsResponseCode.NoError, resp1.RCODE);
 
-        // Second ProcessRequest finds no pending rewrite (already consumed)
+        // Second client also finds its own pending rewrite (no collision)
         var resp2 = await app.ProcessRequestAsync(req2, EP("10.0.0.2"));
-        Assert.Equal(DnsResponseCode.NxDomain, resp2.RCODE);
+        Assert.Equal(DnsResponseCode.NoError, resp2.RCODE);
     }
 
     [Fact]
