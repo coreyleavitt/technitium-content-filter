@@ -1,22 +1,7 @@
 <%inherit file="base.html"/>
 <%def name="title()">Dashboard</%def>
-<%
-all_clients = config.get('clients', [])
-protected_clients = [c for c in all_clients if c.get('profile') and c['profile'] in config.get('profiles', {})]
-unprotected_clients = [c for c in all_clients if not c.get('profile') or c['profile'] not in config.get('profiles', {})]
-total_blocked_services = set()
-total_blocklists = len(config.get('blockLists', []))
-total_custom_rules = 0
-total_allow_entries = 0
-total_rewrites = 0
-for p in config.get('profiles', {}).values():
-    total_blocked_services.update(p.get('blockedServices', []))
-    total_custom_rules += len([r for r in p.get('customRules', []) if r.strip() and not r.strip().startswith('#')])
-    total_allow_entries += len([a for a in p.get('allowList', []) if a.strip()])
-    total_rewrites += len(p.get('dnsRewrites', []))
-%>
 
-<script id="page-data" type="application/json">${json.dumps(config)}</script>
+<script id="page-data" type="application/json">${json.dumps(config) | n}</script>
 
 <div class="space-y-6">
     <!-- Protection Status Hero -->

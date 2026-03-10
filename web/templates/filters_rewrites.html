@@ -1,6 +1,6 @@
 <%inherit file="base.html"/>
 <%def name="title()">DNS Rewrites</%def>
-<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {})})}</script>
+<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {})}) | n}</script>
 
 <div class="space-y-6">
     <div>

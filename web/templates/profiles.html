@@ -1,6 +1,6 @@
 <%inherit file="base.html"/>
 <%def name="title()">Profiles</%def>
-<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {}), "services": services, "scheduleAllDay": config.get("scheduleAllDay", True), "blockLists": config.get("blockLists", [])})}</script>
+<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {}), "services": services, "scheduleAllDay": config.get("scheduleAllDay", True), "blockLists": config.get("blockLists", [])}) | n}</script>
 
 <div class="space-y-6">
     <div class="flex justify-between items-center">
