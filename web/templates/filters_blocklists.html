@@ -20,6 +20,16 @@
         </div>
     </div>
 
+    <%
+        block_lists = config.get('blockLists', [])
+        all_disabled = block_lists and not any(bl.get('enabled') for bl in block_lists)
+    %>
+    % if all_disabled:
+    <div class="rounded-lg border border-blue-200 bg-blue-100 p-4">
+        <p class="text-sm text-blue-800">All blocklists are currently disabled. Enable a blocklist and assign it to a profile to start blocking domains.</p>
+    </div>
+    % endif
+
     <div id="blocklistsList"></div>
 </div>
 

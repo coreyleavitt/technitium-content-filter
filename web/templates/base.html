@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="base-path" content="${base_path}">
-    <title>Parental Controls - ${self.title()}</title>
+    <title>Content Filter - ${self.title()}</title>
     <link rel="stylesheet" href="${base_path}/static/css/styles.css">
     <script>
     // Apply theme immediately to prevent flash
@@ -95,19 +95,29 @@
     /* Footer */
     footer { background-color: #f3f3f3; }
     .dark footer { background-color: #252525 !important; border-color: #3a3a3c !important; }
+
+    /* Toast notifications */
+    .toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+    .toast { pointer-events: auto; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; box-shadow: 0 4px 6px rgba(0,0,0,0.1); opacity: 0; transform: translateX(100%); transition: opacity 0.3s, transform 0.3s; }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .toast-success { background-color: #065f46; color: #d1fae5; }
+    .toast-error { background-color: #991b1b; color: #fee2e2; }
     </style>
 </head>
 <body class="h-full bg-gray-50 transition-colors">
+    <div id="toastContainer" class="toast-container"></div>
     <div class="min-h-full">
         <nav class="bg-indigo-600">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="flex h-16 items-center justify-between">
                     <div class="flex items-center flex-1">
+                        % if base_path:
                         <a href="/" title="Back to Technitium DNS" class="text-indigo-200 hover:text-white mr-2">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
                         </a>
-                        <span class="text-white text-lg font-bold">Parental Controls</span>
-                        <div class="ml-10 flex items-baseline space-x-4">
+                        % endif
+                        <span class="text-white text-lg font-bold">Content Filter</span>
+                        <div class="hidden md:flex ml-10 items-baseline space-x-4">
                             <a href="${base_path}/" class="rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'dashboard' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Dashboard</a>
                             <a href="${base_path}/profiles" class="rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'profiles' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Profiles</a>
                             <a href="${base_path}/clients" class="rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'clients' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Clients</a>
@@ -129,6 +139,24 @@
                             </div>
                         </div>
                     </div>
+                    <button type="button" id="mobileMenuBtn" class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-indigo-200 hover:bg-indigo-500 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="mobileMenu" class="hidden md:hidden border-t border-indigo-500">
+                <div class="space-y-1 px-4 pb-3 pt-2">
+                    <a href="${base_path}/" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'dashboard' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Dashboard</a>
+                    <a href="${base_path}/profiles" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'profiles' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Profiles</a>
+                    <a href="${base_path}/clients" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'clients' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Clients</a>
+                    <div class="border-t border-indigo-500 pt-1 mt-1">
+                        <span class="block px-3 py-1 text-xs font-semibold text-indigo-300 uppercase">Filters</span>
+                        <a href="${base_path}/filters/blocklists" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-blocklists' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Blocklists</a>
+                        <a href="${base_path}/filters/allowlists" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-allowlists' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Allowlists</a>
+                        <a href="${base_path}/filters/services" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-services' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Blocked Services</a>
+                        <a href="${base_path}/filters/rules" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rules' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Custom Filtering Rules</a>
+                        <a href="${base_path}/filters/rewrites" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rewrites' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Rewrites</a>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -142,7 +170,7 @@
         <!-- Footer -->
         <footer class="mt-8 border-t border-gray-200">
             <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
-                <span class="text-xs text-gray-400">Parental Controls</span>
+                <span class="text-xs text-gray-400">Content Filter</span>
                 <div class="inline-flex items-center rounded-lg bg-gray-200 p-0.5" id="themeSwitcher">
                     <button type="button" onclick="setTheme('system')" id="theme-system" title="System"
                         class="theme-btn rounded-md p-1.5 transition-colors text-gray-500">
@@ -170,6 +198,11 @@
         if (dropdown && menu && !dropdown.contains(e.target)) {
             menu.classList.add('hidden');
         }
+    });
+
+    // Mobile menu toggle
+    document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+        document.getElementById('mobileMenu').classList.toggle('hidden');
     });
 
     // Theme management

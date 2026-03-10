@@ -23,9 +23,11 @@ async function saveAllowList() {
     if (!currentProfile) return;
     const domains = document.getElementById('allowListText').value
         .split('\n').map(s => s.trim()).filter(Boolean);
-    await apiCall('POST', '/api/allowlists', { profile: currentProfile, domains });
+    const result = await apiCall('POST', '/api/allowlists', { profile: currentProfile, domains });
+    if (result.error) { showToast(result.error, 'error'); return; }
     profiles[currentProfile].allowList = domains;
     updateCount();
+    showToast('Allowlist saved.', 'success');
 }
 
 initProfilePicker('profilePicker', profiles, loadProfile);

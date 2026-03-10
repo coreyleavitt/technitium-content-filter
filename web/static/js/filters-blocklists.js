@@ -79,9 +79,10 @@ async function refreshBlocklists() {
     const btn = document.getElementById('refreshBtn');
     btn.textContent = 'Refreshing...';
     btn.disabled = true;
-    await apiCall('POST', '/api/blocklists/refresh');
+    const result = await apiCall('POST', '/api/blocklists/refresh');
     btn.textContent = 'Refresh All';
     btn.disabled = false;
+    if (result.error) { showToast(result.error, 'error'); } else { showToast('Blocklists refreshed.', 'success'); }
 }
 
 document.getElementById('blocklistForm').addEventListener('submit', async (e) => {
@@ -89,11 +90,13 @@ document.getElementById('blocklistForm').addEventListener('submit', async (e) =>
     const url = document.getElementById('blUrl').value.trim();
     if (!url) return;
 
-    await apiCall('POST', '/api/blocklists', {
+    const saveResult = await apiCall('POST', '/api/blocklists', {
         url,
         name: document.getElementById('blName').value.trim(),
         enabled: document.getElementById('blEnabled').checked,
         refreshHours: parseInt(document.getElementById('blRefreshHours').value) || 24,
     });
+    if (saveResult.error) { showToast(saveResult.error, 'error'); return; }
+    showToast('Blocklist saved.', 'success');
     location.reload();
 });

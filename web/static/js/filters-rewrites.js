@@ -37,10 +37,12 @@ document.getElementById('rewritesBody').addEventListener('click', (e) => {
 
 async function deleteRewrite(domain) {
     if (!currentProfile) return;
-    await apiCall('DELETE', '/api/rewrites', { profile: currentProfile, domain });
+    const result = await apiCall('DELETE', '/api/rewrites', { profile: currentProfile, domain });
+    if (result.error) { showToast(result.error, 'error'); return; }
     const profile = profiles[currentProfile];
     profile.dnsRewrites = (profile.dnsRewrites || []).filter(rw => rw.domain !== domain);
     renderRewrites();
+    showToast('Rewrite deleted.', 'success');
 }
 
 document.getElementById('addRewriteForm').addEventListener('submit', async (e) => {
@@ -50,7 +52,9 @@ document.getElementById('addRewriteForm').addEventListener('submit', async (e) =
     const answer = document.getElementById('newAnswer').value.trim();
     if (!domain || !answer) return;
 
-    await apiCall('POST', '/api/rewrites', { profile: currentProfile, domain, answer });
+    const addResult = await apiCall('POST', '/api/rewrites', { profile: currentProfile, domain, answer });
+    if (addResult.error) { showToast(addResult.error, 'error'); return; }
+    showToast('Rewrite added.', 'success');
     const profile = profiles[currentProfile];
     profile.dnsRewrites = profile.dnsRewrites || [];
     const existing = profile.dnsRewrites.findIndex(rw => rw.domain === domain);
