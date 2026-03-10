@@ -6,6 +6,9 @@ The web management UI is a Python application that runs alongside Technitium DNS
 
 The recommended deployment uses Docker. The web UI container needs access to the plugin's configuration file via a shared volume.
 
+!!! tip
+    A complete Docker Compose example with both Technitium DNS Server and the Web UI is available at [`docker-compose.example.yaml`](https://github.com/coreyleavitt/technitium-content-filter/blob/main/docker-compose.example.yaml) in the repository root.
+
 ```yaml
 services:
   parental-controls-web:

@@ -50,6 +50,34 @@ Adults Profile ("adults")
 └── + Allowlist exceptions for specific sites
 ```
 
+## Base Profile vs Default Profile
+
+These are two distinct concepts that are often confused:
+
+| | Base Profile | Default Profile |
+|---|---|---|
+| **Purpose** | Filter inheritance -- its rules merge into all other profiles | Fallback assignment -- used for clients not assigned a specific profile |
+| **Setting** | `baseProfile` in global settings | `defaultProfile` in global settings |
+| **Effect** | Blocklists, allowlists, rewrites, and custom rules from the base are merged into every other compiled profile | Clients without an explicit profile assignment are treated as if they belong to this profile |
+| **UI label** | "Base Profile" dropdown | "Default Profile" dropdown (shows "None (allow all)" when empty) |
+
+They can be set to different profiles. For example:
+
+```json
+{
+  "baseProfile": "shared-security",
+  "defaultProfile": "adults"
+}
+```
+
+In this setup:
+
+- **shared-security** provides malware/phishing blocklists that are inherited by all profiles (kids, adults, guests, etc.)
+- **adults** is the fallback for any client without an explicit assignment, applying the adults profile's own filters plus the inherited shared-security filters
+- A client explicitly assigned to "kids" gets the kids profile's filters plus the inherited shared-security filters
+
+If `defaultProfile` is empty, unassigned clients fall through to the base profile. If both are empty, unassigned clients are unfiltered.
+
 ## Profiles Without a Base
 
 When no base profile is configured, each profile operates independently. Its compiled domain sets contain only its own filters.

@@ -45,7 +45,7 @@ Each profile defines a set of filtering rules. See [Profiles](../guide/profiles.
         { "domain": "google.com", "answer": "forcesafesearch.google.com" }
       ],
       "schedule": {
-        "monday": { "startTime": "08:00", "endTime": "20:00" }
+        "mon": { "allDay": false, "start": "08:00", "end": "20:00" }
       }
     }
   }
@@ -60,7 +60,7 @@ Client entries map network identifiers to profiles. See [Clients](../guide/clien
 {
   "clients": [
     {
-      "identifier": ["192.168.1.100", "laptop.dns.leavitt.info"],
+      "ids": ["192.168.1.100", "laptop.dns.leavitt.info"],
       "profile": "kids"
     }
   ]

@@ -74,3 +74,4 @@ nav:
       - Testing: development/testing.md
       - Contributing: development/contributing.md
   - Configuration Reference: reference.md
+  - REST API Reference: reference-api.md
