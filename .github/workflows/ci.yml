@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet-test:
+    name: C# Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build -f Dockerfile.test -t content-filter-tests .
+
+      - name: Run unit + property tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/coverage:/coverage \
+            content-filter-tests \
+            dotnet test --no-restore \
+              --logger "console;verbosity=normal" \
+              --settings /src/app/tests/coverlet.runsettings \
+              --results-directory /coverage
+
+      - name: Extract coverage percentage
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          COV_FILE=$(find coverage -name "coverage.cobertura.xml" | head -1)
+          if [ -n "$COV_FILE" ]; then
+            LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' "$COV_FILE" | head -1)
+            PCT=$(echo "$LINE_RATE * 100" | bc | xargs printf "%.0f")
+            if [ "$PCT" -ge 90 ]; then COLOR="brightgreen";
+            elif [ "$PCT" -ge 80 ]; then COLOR="green";
+            elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
+            else COLOR="red"; fi
+            cat > dotnet-coverage-badge.json <<EOF
+          {"schemaVersion":1,"label":"C# coverage","message":"${PCT}%","color":"${COLOR}"}
+          EOF
+          fi
+
+      - name: Upload coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-coverage-badge
+          path: dotnet-coverage-badge.json
+          if-no-files-found: ignore
+
+  python-test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra test
+
+      - name: Run unit, API, route, and property tests
+        run: |
+          uv run pytest tests/ --cov-report=html:htmlcov --cov-report=term-missing
+
+      - name: Extract coverage percentage
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          PCT=$(uv run python -c "
+          import re, pathlib
+          html = pathlib.Path('htmlcov/index.html').read_text()
+          m = re.search(r'<span class=\"pc_cov\">(\\d+)%</span>', html)
+          print(m.group(1) if m else '0')
+          ")
+          if [ "$PCT" -ge 90 ]; then COLOR="brightgreen";
+          elif [ "$PCT" -ge 80 ]; then COLOR="green";
+          elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
+          else COLOR="red"; fi
+          cat > python-coverage-badge.json <<EOF
+          {"schemaVersion":1,"label":"Python coverage","message":"${PCT}%","color":"${COLOR}"}
+          EOF
+
+      - name: Upload coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-badge
+          path: web/python-coverage-badge.json
+          if-no-files-found: ignore
+
+  python-e2e:
+    name: E2E Browser Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra test
+
+      - name: Install Playwright browsers
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: uv run pytest -m e2e --no-cov
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Ruff check
+        run: uvx ruff check src/ app.py tests/
+
+      - name: Ruff format
+        run: uvx ruff format --check app.py tests/
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: mypy
+        run: uv run mypy --strict app.py

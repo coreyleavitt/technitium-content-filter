@@ -1,0 +1,195 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - no
+      prerelease:
+        description: "Pre-release tag"
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - alpha
+          - beta
+          - rc
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-version:
+    name: Prepare Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        run: |
+          # Read current version from .csproj
+          CURRENT=$(grep -oP '<Version>\K[^<]+' src/ParentalControlsApp/ParentalControlsApp.csproj)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
+
+          if [ "${{ inputs.bump }}" != "no" ]; then
+            case "${{ inputs.bump }}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+          fi
+
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          if [ "${{ inputs.prerelease }}" != "no" ]; then
+            VERSION="${VERSION}-${{ inputs.prerelease }}.1"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Update version in .csproj
+        if: inputs.bump != 'no'
+        run: |
+          sed -i "s|<Version>.*</Version>|<Version>${{ steps.version.outputs.version }}</Version>|" \
+            src/ParentalControlsApp/ParentalControlsApp.csproj
+
+      - name: Commit version bump
+        id: commit
+        if: inputs.bump != 'no'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const content = fs.readFileSync('src/ParentalControlsApp/ParentalControlsApp.csproj', 'utf8');
+            const blob = await github.rest.git.createBlob({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              content: content,
+              encoding: 'utf-8'
+            });
+            const baseCommit = await github.rest.git.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha
+            });
+            const tree = await github.rest.git.createTree({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base_tree: baseCommit.data.tree.sha,
+              tree: [{
+                path: 'src/ParentalControlsApp/ParentalControlsApp.csproj',
+                mode: '100644',
+                type: 'blob',
+                sha: blob.data.sha
+              }]
+            });
+            const commit = await github.rest.git.createCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              message: `Bump version to ${{ steps.version.outputs.version }}`,
+              tree: tree.data.sha,
+              parents: [context.sha]
+            });
+            await github.rest.git.updateRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main',
+              sha: commit.data.sha
+            });
+            core.setOutput('sha', commit.data.sha);
+
+      - name: Use current SHA if no bump
+        if: inputs.bump == 'no'
+        run: echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Plugin
+    needs: prepare-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
+
+      - name: Build plugin ZIP
+        run: |
+          docker build -f Dockerfile.build -o dist .
+
+      - name: Rename artifact with version
+        run: |
+          VERSION="${{ needs.prepare-version.outputs.version }}"
+          mv dist/ParentalControlsApp.zip "dist/ParentalControlsApp-${VERSION}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-zip
+          path: dist/*.zip
+
+  test:
+    name: Verify Build
+    needs: [prepare-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
+
+      - name: Build and run C# tests
+        run: |
+          docker build -f Dockerfile.test -t content-filter-tests .
+          docker run --rm content-filter-tests
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run Python tests
+        working-directory: web
+        run: |
+          uv sync --extra test
+          uv run pytest tests/
+
+  create-release:
+    name: Create Release
+    needs: [prepare-version, build, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
+
+      - name: Download plugin ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-zip
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.prepare-version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == *-alpha* ]] || [[ "$VERSION" == *-beta* ]] || [[ "$VERSION" == *-rc* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          gh release create "$TAG" dist/*.zip \
+            --title "$TAG" \
+            --generate-notes \
+            $PRERELEASE_FLAG

@@ -1,0 +1,49 @@
+name: Badges
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: badges
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Badges
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download coverage badges
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: badges
+
+      - name: Prepare pages directory
+        run: |
+          mkdir -p _site
+          # Move badge JSON files to site root
+          find badges -name "*.json" -exec cp {} _site/ \;
+          # Create a simple index
+          echo '<html><body><h1>CI Badges</h1><ul>' > _site/index.html
+          for f in _site/*.json; do
+            name=$(basename "$f")
+            echo "<li><a href=\"$name\">$name</a></li>" >> _site/index.html
+          done
+          echo '</ul></body></html>' >> _site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+      - id: deployment
+        uses: actions/deploy-pages@v4
