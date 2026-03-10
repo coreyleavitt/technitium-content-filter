@@ -1,0 +1,58 @@
+# Base Profile
+
+The base profile is a special profile whose filters are inherited by all other profiles. This provides a way to define shared filtering rules once and apply them everywhere.
+
+## Setting the Base Profile
+
+In the web UI dashboard, use the **Base Profile** dropdown in the settings section to designate a profile as the base.
+
+Any existing profile can be used as the base. It continues to function as a normal profile for clients assigned to it directly.
+
+## Merge Behavior
+
+When compiling a profile that is not the base profile, the plugin merges the base profile's filters:
+
+| Filter Type | Merge Strategy |
+|-------------|---------------|
+| Blocked domains | Union (base + profile) |
+| Allowed domains | Union (base + profile) |
+| DNS rewrites | Union, profile wins on conflict |
+| Blocked services | Each profile selects its own services |
+| Blocklists | Each profile selects its own lists |
+
+### Allow Overrides Block
+
+The key design principle: a child profile's allowlist entries override base profile block entries. This is enforced by the [evaluation order](../architecture/filtering.md) -- allowlists are checked before blocklists.
+
+**Example**: If the base profile blocks `social-media.com` via a blocklist, a child profile can add `social-media.com` to its allowlist to restore access for its clients.
+
+## Use Cases
+
+### Shared Ad Blocking
+
+Set up a base profile with ad-blocking and tracking-protection blocklists. All other profiles inherit these blocks automatically without needing to subscribe to the same lists individually.
+
+### Layered Restrictions
+
+```
+Base Profile ("base")
+├── Ad blocking blocklists
+├── Malware domain blocklists
+└── DNS rewrites for safe search
+
+Children Profile ("kids")
+├── Inherits all base blocks
+├── + Blocked services: YouTube, TikTok
+└── + Custom rules for age-inappropriate sites
+
+Adults Profile ("adults")
+├── Inherits all base blocks
+└── + Allowlist exceptions for specific sites
+```
+
+## Profiles Without a Base
+
+When no base profile is configured, each profile operates independently. Its compiled domain sets contain only its own filters.
+
+!!! tip
+    The base profile only affects filter compilation. Client-to-profile assignment is unchanged -- clients still need explicit assignments or fall through to the default profile.

@@ -40,6 +40,10 @@ dev = [
     "mypy>=1.19.1",
     "ruff>=0.1.0",
 ]
+docs = [
+    "mkdocs-material>=9.0,<10.0",
+    "pymdown-extensions>=10.0,<11.0",
+]
 
 [tool.mypy]
 strict = true

@@ -31,3 +31,6 @@ REVIEW*.md
 
 # Stryker mutation testing
 StrykerOutput/
+
+# MkDocs build output
+site/
