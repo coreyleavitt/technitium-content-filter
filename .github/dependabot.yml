@@ -13,7 +13,7 @@ updates:
           - patch
 
   - package-ecosystem: nuget
-    directory: /src/ParentalControlsApp
+    directory: /src/ContentFilter
     schedule:
       interval: weekly
     commit-message:

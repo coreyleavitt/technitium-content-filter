@@ -8,7 +8,7 @@
           <ThresholdType>line,branch</ThresholdType>
           <ThresholdStat>total</ThresholdStat>
           <Threshold>85,80</Threshold>
-          <Include>[ParentalControlsApp]*</Include>
+          <Include>[ContentFilter]*</Include>
           <Exclude>[*Tests]*,[*Benchmarks]*</Exclude>
           <ExcludeByAttribute>ExcludeFromCodeCoverage</ExcludeByAttribute>
           <SingleHit>false</SingleHit>

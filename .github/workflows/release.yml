@@ -40,7 +40,7 @@ jobs:
         id: version
         run: |
           # Read current version from .csproj
-          CURRENT=$(grep -oP '<Version>\K[^<]+' src/ParentalControlsApp/ParentalControlsApp.csproj)
+          CURRENT=$(grep -oP '<Version>\K[^<]+' src/ContentFilter/ContentFilter.csproj)
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
 
           if [ "${{ inputs.bump }}" != "no" ]; then
@@ -63,7 +63,7 @@ jobs:
         if: inputs.bump != 'no'
         run: |
           sed -i "s|<Version>.*</Version>|<Version>${{ steps.version.outputs.version }}</Version>|" \
-            src/ParentalControlsApp/ParentalControlsApp.csproj
+            src/ContentFilter/ContentFilter.csproj
 
       - name: Commit version bump
         id: commit
@@ -72,7 +72,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const content = fs.readFileSync('src/ParentalControlsApp/ParentalControlsApp.csproj', 'utf8');
+            const content = fs.readFileSync('src/ContentFilter/ContentFilter.csproj', 'utf8');
             const blob = await github.rest.git.createBlob({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -89,7 +89,7 @@ jobs:
               repo: context.repo.repo,
               base_tree: baseCommit.data.tree.sha,
               tree: [{
-                path: 'src/ParentalControlsApp/ParentalControlsApp.csproj',
+                path: 'src/ContentFilter/ContentFilter.csproj',
                 mode: '100644',
                 type: 'blob',
                 sha: blob.data.sha
@@ -130,7 +130,7 @@ jobs:
       - name: Rename artifact with version
         run: |
           VERSION="${{ needs.prepare-version.outputs.version }}"
-          mv dist/ParentalControlsApp.zip "dist/ParentalControlsApp-${VERSION}.zip"
+          mv dist/ContentFilter.zip "dist/ContentFilter-${VERSION}.zip"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7

@@ -45,7 +45,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock content-filter-inte
 
 ```bash
 docker run --rm content-filter-tests \
-  dotnet run --project /src/app/tests/ParentalControlsApp.Benchmarks -c Release -- --filter "*"
+  dotnet run --project /src/app/tests/ContentFilter.Benchmarks -c Release -- --filter "*"
 ```
 
 ### Mutation Testing

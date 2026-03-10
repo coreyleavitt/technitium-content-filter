@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 
-echo "Building ParentalControlsApp..."
+echo "Building ContentFilter..."
 mkdir -p "$OUTPUT_DIR"
 
 docker buildx build \
@@ -12,4 +12,4 @@ docker buildx build \
     -o "$OUTPUT_DIR" \
     "$PROJECT_DIR"
 
-echo "Build complete: $OUTPUT_DIR/ParentalControlsApp.zip"
+echo "Build complete: $OUTPUT_DIR/ContentFilter.zip"

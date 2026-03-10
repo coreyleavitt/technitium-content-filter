@@ -21,8 +21,8 @@ docker build -f Dockerfile.build -o dist .
 # Install to Technitium
 curl -s -X POST "https://your-dns-server/api/apps/install" \
   -F "token=YOUR_API_TOKEN" \
-  -F "name=ParentalControlsApp" \
-  -F "appZip=@dist/ParentalControlsApp.zip"
+  -F "name=ContentFilter" \
+  -F "appZip=@dist/ContentFilter.zip"
 ```
 
 See [Installation](getting-started/installation.md) for detailed setup instructions.

@@ -65,14 +65,14 @@ When a DNS query arrives, the plugin evaluates in this order:
 ## Project Structure
 
 ```
-├── src/ParentalControlsApp/       # C# DNS app plugin
+├── src/ContentFilter/       # C# DNS app plugin
 │   ├── App.cs                     # Plugin entry point (IDnsApplication)
 │   ├── Models/                    # Config and compiled profile models
 │   └── Services/                  # Domain matching, filtering, compilation
 ├── tests/
-│   ├── ParentalControlsApp.Tests/           # C# unit + property tests (~310)
-│   ├── ParentalControlsApp.IntegrationTests/ # Docker-based integration tests
-│   └── ParentalControlsApp.Benchmarks/       # Performance benchmarks
+│   ├── ContentFilter.Tests/           # C# unit + property tests (~310)
+│   ├── ContentFilter.IntegrationTests/ # Docker-based integration tests
+│   └── ContentFilter.Benchmarks/       # Performance benchmarks
 ├── web/                           # Python web management UI
 │   ├── app.py                     # Starlette application
 │   ├── templates/                 # Mako HTML templates
@@ -99,7 +99,7 @@ When a DNS query arrives, the plugin evaluates in this order:
 docker build -f Dockerfile.build -o dist .
 ```
 
-This outputs `dist/ParentalControlsApp.zip` -- the plugin archive.
+This outputs `dist/ContentFilter.zip` -- the plugin archive.
 
 ### Install the Plugin
 
@@ -108,8 +108,8 @@ Upload via the Technitium DNS Server API:
 ```bash
 curl -s -X POST "https://your-dns-server/api/apps/install" \
   -F "token=YOUR_API_TOKEN" \
-  -F "name=ParentalControlsApp" \
-  -F "appZip=@dist/ParentalControlsApp.zip"
+  -F "name=ContentFilter" \
+  -F "appZip=@dist/ContentFilter.zip"
 ```
 
 To update an existing installation:
@@ -117,8 +117,8 @@ To update an existing installation:
 ```bash
 curl -s -X POST "https://your-dns-server/api/apps/update" \
   -F "token=YOUR_API_TOKEN" \
-  -F "name=ParentalControlsApp" \
-  -F "appZip=@dist/ParentalControlsApp.zip"
+  -F "name=ContentFilter" \
+  -F "appZip=@dist/ContentFilter.zip"
 ```
 
 ### Run the Web UI

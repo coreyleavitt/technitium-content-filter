@@ -4,9 +4,9 @@
 
 | Project | Type | Count | Runtime |
 |---------|------|-------|---------|
-| `ParentalControlsApp.Tests` | Unit + Property | ~310 | ~5s |
-| `ParentalControlsApp.IntegrationTests` | Integration (Docker) | 15 | ~15s |
-| `ParentalControlsApp.Benchmarks` | Performance | 3 suites | ~2min |
+| `ContentFilter.Tests` | Unit + Property | ~310 | ~5s |
+| `ContentFilter.IntegrationTests` | Integration (Docker) | 15 | ~15s |
+| `ContentFilter.Benchmarks` | Performance | 3 suites | ~2min |
 
 ## Running Tests
 
@@ -58,7 +58,7 @@ docker run --rm parental-controls-tests \
 ```bash
 docker build -f Dockerfile.test -t parental-controls-tests .
 docker run --rm parental-controls-tests \
-  dotnet run --project /src/app/tests/ParentalControlsApp.Benchmarks -c Release -- --filter "*"
+  dotnet run --project /src/app/tests/ContentFilter.Benchmarks -c Release -- --filter "*"
 ```
 
 ### Mutation Testing

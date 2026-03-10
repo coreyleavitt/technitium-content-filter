@@ -1,8 +1,8 @@
 {
   "stryker-config": {
-    "project": "src/ParentalControlsApp/ParentalControlsApp.csproj",
+    "project": "src/ContentFilter/ContentFilter.csproj",
     "test-projects": [
-      "tests/ParentalControlsApp.Tests/ParentalControlsApp.Tests.csproj"
+      "tests/ContentFilter.Tests/ContentFilter.Tests.csproj"
     ],
     "reporters": ["html", "progress", "cleartext"],
     "thresholds": {
@@ -11,9 +11,9 @@
       "break": 60
     },
     "mutate": [
-      "src/ParentalControlsApp/Services/**/*.cs",
-      "src/ParentalControlsApp/Models/**/*.cs",
-      "!src/ParentalControlsApp/App.cs"
+      "src/ContentFilter/Services/**/*.cs",
+      "src/ContentFilter/Models/**/*.cs",
+      "!src/ContentFilter/App.cs"
     ],
     "ignore-mutations": [
       "string",

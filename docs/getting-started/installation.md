@@ -13,7 +13,7 @@ The plugin builds inside a Docker container that provides the Technitium SDK dep
 docker build -f Dockerfile.build -o dist .
 ```
 
-This produces `dist/ParentalControlsApp.zip`.
+This produces `dist/ContentFilter.zip`.
 
 !!! note
     The build clones specific Technitium SDK versions (`dns-server-v14.3.0`) inside the container. No local .NET SDK installation is required.
@@ -25,8 +25,8 @@ This produces `dist/ParentalControlsApp.zip`.
 ```bash
 curl -s -X POST "https://your-dns-server/api/apps/install" \
   -F "token=YOUR_API_TOKEN" \
-  -F "name=ParentalControlsApp" \
-  -F "appZip=@dist/ParentalControlsApp.zip"
+  -F "name=ContentFilter" \
+  -F "appZip=@dist/ContentFilter.zip"
 ```
 
 ### Updating an existing installation
@@ -34,8 +34,8 @@ curl -s -X POST "https://your-dns-server/api/apps/install" \
 ```bash
 curl -s -X POST "https://your-dns-server/api/apps/update" \
   -F "token=YOUR_API_TOKEN" \
-  -F "name=ParentalControlsApp" \
-  -F "appZip=@dist/ParentalControlsApp.zip"
+  -F "name=ContentFilter" \
+  -F "appZip=@dist/ContentFilter.zip"
 ```
 
 !!! warning
@@ -46,7 +46,7 @@ curl -s -X POST "https://your-dns-server/api/apps/update" \
 After installation, the app appears in the Technitium DNS Server admin panel under **Apps**. To activate filtering:
 
 1. Go to **Settings** > **Blocking** in the Technitium admin
-2. Set the blocking app to **ParentalControlsApp**
+2. Set the blocking app to **ContentFilter**
 3. Configure your profiles and clients (see [Configuration](configuration.md))
 
 ## Next Steps

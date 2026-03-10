@@ -18,7 +18,7 @@ type JsonObj = dict[str, JsonValue]
 
 CONFIG_PATH = Path(os.environ.get("CONFIG_PATH", "/data/dnsApp.config"))
 TECHNITIUM_URL = os.environ.get("TECHNITIUM_URL", "http://technitium:5380")
-APP_NAME = os.environ.get("APP_NAME", "ParentalControlsApp")
+APP_NAME = os.environ.get("APP_NAME", "ContentFilter")
 BASE_PATH = os.environ.get("BASE_PATH", "/")
 
 

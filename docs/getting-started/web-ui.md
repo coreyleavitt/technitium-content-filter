@@ -29,7 +29,7 @@ services:
 | `TECHNITIUM_URL` | Yes | `http://technitium:5380` | Technitium DNS Server HTTP API URL |
 | `TECHNITIUM_API_TOKEN` | Yes* | `""` | API token for triggering config reloads |
 | `TECHNITIUM_API_TOKEN_FILE` | Yes* | - | Path to file containing the API token (preferred over env var) |
-| `APP_NAME` | No | `ParentalControlsApp` | App name registered in Technitium |
+| `APP_NAME` | No | `ContentFilter` | App name registered in Technitium |
 | `BASE_PATH` | No | `/` | URL prefix when behind a reverse proxy |
 
 *Provide either `TECHNITIUM_API_TOKEN` or `TECHNITIUM_API_TOKEN_FILE`.

@@ -15,13 +15,13 @@ RUN dotnet build -c Release
 
 # Copy our app source and build it
 WORKDIR /src/app
-COPY src/ParentalControlsApp/ ./
+COPY src/ContentFilter/ ./
 RUN dotnet restore
 RUN dotnet publish -c Release -o /out --no-restore
 
 FROM build AS package
 RUN apt-get update -qq && apt-get install -y -qq zip > /dev/null 2>&1
-RUN cd /out && zip -r /ParentalControlsApp.zip .
+RUN cd /out && zip -r /ContentFilter.zip .
 
 FROM scratch AS export
-COPY --from=package /ParentalControlsApp.zip /
+COPY --from=package /ContentFilter.zip /

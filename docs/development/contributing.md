@@ -70,7 +70,7 @@ uv run pytest -m e2e --no-cov
 ## Project Structure
 
 ```
-├── src/ParentalControlsApp/       # C# plugin source
+├── src/ContentFilter/       # C# plugin source
 ├── tests/                         # C# test projects
 ├── web/                           # Python web UI
 │   ├── app.py                     # Application code
