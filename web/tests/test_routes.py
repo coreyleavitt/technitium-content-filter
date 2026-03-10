@@ -5,7 +5,6 @@ import pytest
 
 @pytest.mark.route
 class TestPageRoutes:
-
     def test_dashboard(self, client):
         resp = client.get("/")
         assert resp.status_code == 200
@@ -60,7 +59,6 @@ class TestPageRoutes:
 
 @pytest.mark.route
 class TestApiConfigRoute:
-
     def test_get_config(self, client):
         resp = client.get("/api/config")
         assert resp.status_code == 200
@@ -69,11 +67,14 @@ class TestApiConfigRoute:
         assert "profiles" in data
 
     def test_set_config(self, client):
-        resp = client.post("/api/config", json={
-            "enableBlocking": False,
-            "profiles": {},
-            "clients": [],
-        })
+        resp = client.post(
+            "/api/config",
+            json={
+                "enableBlocking": False,
+                "profiles": {},
+                "clients": [],
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -87,7 +88,6 @@ class TestApiConfigRoute:
 
 @pytest.mark.route
 class TestEmptyConfig:
-
     def test_dashboard_empty(self, client_empty):
         resp = client_empty.get("/")
         assert resp.status_code == 200

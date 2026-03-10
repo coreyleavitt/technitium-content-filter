@@ -7,13 +7,15 @@ from tests.conftest import read_config
 
 @pytest.mark.api
 class TestMissingRequiredFields:
-
     def test_profile_save_missing_name(self, client, tmp_config):
         """POST /api/profiles without 'name' saves with empty-string key."""
-        resp = client.post("/api/profiles", json={
-            "blockedServices": [],
-            "blockLists": [],
-        })
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "blockedServices": [],
+                "blockLists": [],
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         assert "" in config["profiles"]
@@ -25,10 +27,13 @@ class TestMissingRequiredFields:
 
     def test_custom_service_save_missing_id(self, client, tmp_config):
         """POST /api/custom-services without 'id' saves with empty-string key."""
-        resp = client.post("/api/custom-services", json={
-            "name": "Missing ID",
-            "domains": [],
-        })
+        resp = client.post(
+            "/api/custom-services",
+            json={
+                "name": "Missing ID",
+                "domains": [],
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         assert "" in config["customServices"]
@@ -41,7 +46,6 @@ class TestMissingRequiredFields:
 
 @pytest.mark.api
 class TestMalformedRequestBody:
-
     def test_profile_save_invalid_json(self, client_permissive):
         """Sending non-JSON body to API endpoint."""
         resp = client_permissive.post(
@@ -69,14 +73,16 @@ class TestMalformedRequestBody:
 
 @pytest.mark.api
 class TestClientProfileValidation:
-
     def test_client_with_nonexistent_profile_accepted(self, client, tmp_config):
         """Client can reference a profile that doesn't exist (unvalidated)."""
-        resp = client.post("/api/clients", json={
-            "name": "Ghost Profile",
-            "ids": ["10.0.0.99"],
-            "profile": "does-not-exist",
-        })
+        resp = client.post(
+            "/api/clients",
+            json={
+                "name": "Ghost Profile",
+                "ids": ["10.0.0.99"],
+                "profile": "does-not-exist",
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         added = config["clients"][-1]
@@ -110,7 +116,6 @@ class TestClientProfileValidation:
 
 @pytest.mark.api
 class TestConfigFullOverwrite:
-
     def test_config_set_replaces_entire_config(self, client, tmp_config):
         """POST /api/config overwrites everything -- profiles, clients, all gone."""
         resp = client.post("/api/config", json={"foo": "bar"})
@@ -130,15 +135,17 @@ class TestConfigFullOverwrite:
 
 @pytest.mark.api
 class TestProfileSaveSchema:
-
     def test_arbitrary_keys_persisted(self, client, tmp_config):
         """Profile save uses data.pop('name') and saves the rest -- arbitrary keys are stored."""
-        resp = client.post("/api/profiles", json={
-            "name": "test-schema",
-            "blockedServices": [],
-            "unexpected_field": "injected",
-            "another": 42,
-        })
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "name": "test-schema",
+                "blockedServices": [],
+                "unexpected_field": "injected",
+                "another": 42,
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         profile = config["profiles"]["test-schema"]
@@ -148,17 +155,19 @@ class TestProfileSaveSchema:
 
 @pytest.mark.api
 class TestDanglingProfileReferences:
-
     def test_default_profile_dangles_after_delete(self, client, tmp_config):
         """Deleting a profile that is defaultProfile leaves a dangling reference."""
         # Set defaultProfile to kids
-        client.post("/api/settings", json={
-            "enableBlocking": True,
-            "timeZone": "UTC",
-            "defaultProfile": "kids",
-            "baseProfile": "",
-            "scheduleAllDay": True,
-        })
+        client.post(
+            "/api/settings",
+            json={
+                "enableBlocking": True,
+                "timeZone": "UTC",
+                "defaultProfile": "kids",
+                "baseProfile": "",
+                "scheduleAllDay": True,
+            },
+        )
         config = read_config(tmp_config)
         assert config["defaultProfile"] == "kids"
 
@@ -171,13 +180,16 @@ class TestDanglingProfileReferences:
 
     def test_base_profile_dangles_after_delete(self, client, tmp_config):
         """Deleting a profile that is baseProfile leaves a dangling reference."""
-        client.post("/api/settings", json={
-            "enableBlocking": True,
-            "timeZone": "UTC",
-            "defaultProfile": "",
-            "baseProfile": "adults",
-            "scheduleAllDay": True,
-        })
+        client.post(
+            "/api/settings",
+            json={
+                "enableBlocking": True,
+                "timeZone": "UTC",
+                "defaultProfile": "",
+                "baseProfile": "adults",
+                "scheduleAllDay": True,
+            },
+        )
         client.request("DELETE", "/api/profiles", json={"name": "adults"})
         config = read_config(tmp_config)
         assert "adults" not in config["profiles"]

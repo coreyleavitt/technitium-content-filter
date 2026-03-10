@@ -12,10 +12,14 @@ def tmp_config(tmp_path):
     """Temporary config directory with config path and blocked-services.json."""
     config_path = tmp_path / "dnsApp.config"
     services_path = tmp_path / "blocked-services.json"
-    services_path.write_text(json.dumps({
-        "youtube": {"name": "YouTube", "domains": ["youtube.com", "ytimg.com"]},
-        "tiktok": {"name": "TikTok", "domains": ["tiktok.com", "tiktokcdn.com"]},
-    }))
+    services_path.write_text(
+        json.dumps(
+            {
+                "youtube": {"name": "YouTube", "domains": ["youtube.com", "ytimg.com"]},
+                "tiktok": {"name": "TikTok", "domains": ["tiktok.com", "tiktokcdn.com"]},
+            }
+        )
+    )
     return config_path
 
 
@@ -79,8 +83,10 @@ def sample_config():
         },
         "blockLists": [
             {
-                "url": "https://example.com/list.txt", "name": "Ad List",
-                "enabled": True, "refreshHours": 24,
+                "url": "https://example.com/list.txt",
+                "name": "Ad List",
+                "enabled": True,
+                "refreshHours": 24,
             },
         ],
         "_blockListsSeeded": True,
@@ -104,6 +110,7 @@ def client(tmp_config, sample_config):
             return_value=Response(200, json={"status": "ok"})
         )
         from app import app
+
         yield TestClient(app, raise_server_exceptions=True)
 
 
@@ -124,6 +131,7 @@ def client_empty(tmp_config, empty_config):
             return_value=Response(200, json={"status": "ok"})
         )
         from app import app
+
         yield TestClient(app, raise_server_exceptions=True)
 
 
@@ -144,6 +152,7 @@ def client_permissive(tmp_config, sample_config):
             return_value=Response(200, json={"status": "ok"})
         )
         from app import app
+
         yield TestClient(app, raise_server_exceptions=False)
 
 

@@ -39,10 +39,10 @@ class TestRulesSave:
         page.locator("#profilePicker").wait_for()
 
         page.locator("#rulesText").fill("new-block.com\n@@new-allow.com\n# comment")
-        page.get_by_role("button", name="Save").click()
 
-        # Wait for API call to complete -- count updates after save
-        page.wait_for_function("document.getElementById('ruleCount').textContent === '2 rules'")
+        # Wait for API call to complete before reading config
+        with page.expect_response("**/api/rules"):
+            page.get_by_role("button", name="Save").click()
 
         config = read_config(config_path)
         assert config["profiles"]["kids"]["customRules"] == [

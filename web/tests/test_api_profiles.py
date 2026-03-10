@@ -1,6 +1,5 @@
 """API tests for profile CRUD and cascade behaviors."""
 
-
 import pytest
 
 from tests.conftest import read_config
@@ -8,17 +7,19 @@ from tests.conftest import read_config
 
 @pytest.mark.api
 class TestProfileSave:
-
     def test_create_profile(self, client, tmp_config):
-        resp = client.post("/api/profiles", json={
-            "name": "toddler",
-            "description": "Young children",
-            "blockedServices": ["youtube"],
-            "blockLists": [],
-            "allowList": ["pbskids.org"],
-            "customRules": [],
-            "dnsRewrites": [],
-        })
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "name": "toddler",
+                "description": "Young children",
+                "blockedServices": ["youtube"],
+                "blockLists": [],
+                "allowList": ["pbskids.org"],
+                "customRules": [],
+                "dnsRewrites": [],
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         config = read_config(tmp_config)
@@ -26,31 +27,37 @@ class TestProfileSave:
         assert config["profiles"]["toddler"]["description"] == "Young children"
 
     def test_update_existing_profile(self, client, tmp_config):
-        resp = client.post("/api/profiles", json={
-            "name": "kids",
-            "description": "Updated",
-            "blockedServices": [],
-            "blockLists": [],
-            "allowList": [],
-            "customRules": [],
-            "dnsRewrites": [],
-        })
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "name": "kids",
+                "description": "Updated",
+                "blockedServices": [],
+                "blockLists": [],
+                "allowList": [],
+                "customRules": [],
+                "dnsRewrites": [],
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         assert config["profiles"]["kids"]["description"] == "Updated"
         assert config["profiles"]["kids"]["blockedServices"] == []
 
     def test_profile_with_all_fields(self, client, tmp_config):
-        resp = client.post("/api/profiles", json={
-            "name": "full",
-            "description": "Everything",
-            "blockedServices": ["youtube", "tiktok"],
-            "blockLists": ["https://example.com/list.txt"],
-            "allowList": ["safe.com"],
-            "customRules": ["evil.com", "@@exception.com"],
-            "dnsRewrites": [{"domain": "search.com", "answer": "1.2.3.4"}],
-            "schedule": {"mon": {"allDay": True}},
-        })
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "name": "full",
+                "description": "Everything",
+                "blockedServices": ["youtube", "tiktok"],
+                "blockLists": ["https://example.com/list.txt"],
+                "allowList": ["safe.com"],
+                "customRules": ["evil.com", "@@exception.com"],
+                "dnsRewrites": [{"domain": "search.com", "answer": "1.2.3.4"}],
+                "schedule": {"mon": {"allDay": True}},
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         profile = config["profiles"]["full"]
@@ -61,7 +68,6 @@ class TestProfileSave:
 
 @pytest.mark.api
 class TestProfileDelete:
-
     def test_delete_profile(self, client, tmp_config):
         resp = client.request("DELETE", "/api/profiles", json={"name": "kids"})
         assert resp.status_code == 200

@@ -7,14 +7,16 @@ from tests.conftest import read_config
 
 @pytest.mark.api
 class TestBlocklistSave:
-
     def test_create_new_blocklist(self, client, tmp_config):
-        resp = client.post("/api/blocklists", json={
-            "url": "https://new-list.txt",
-            "name": "New Blocklist",
-            "enabled": True,
-            "refreshHours": 12,
-        })
+        resp = client.post(
+            "/api/blocklists",
+            json={
+                "url": "https://new-list.txt",
+                "name": "New Blocklist",
+                "enabled": True,
+                "refreshHours": 12,
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         found = [bl for bl in config["blockLists"] if bl["url"] == "https://new-list.txt"]
@@ -23,12 +25,15 @@ class TestBlocklistSave:
         assert found[0]["refreshHours"] == 12
 
     def test_update_existing_blocklist(self, client, tmp_config):
-        resp = client.post("/api/blocklists", json={
-            "url": "https://example.com/list.txt",
-            "name": "Updated Name",
-            "enabled": False,
-            "refreshHours": 48,
-        })
+        resp = client.post(
+            "/api/blocklists",
+            json={
+                "url": "https://example.com/list.txt",
+                "name": "Updated Name",
+                "enabled": False,
+                "refreshHours": 48,
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         found = [bl for bl in config["blockLists"] if bl["url"] == "https://example.com/list.txt"]
@@ -37,18 +42,24 @@ class TestBlocklistSave:
         assert found[0]["refreshHours"] == 48
 
     def test_empty_url_returns_400(self, client):
-        resp = client.post("/api/blocklists", json={
-            "url": "",
-            "name": "Bad",
-        })
+        resp = client.post(
+            "/api/blocklists",
+            json={
+                "url": "",
+                "name": "Bad",
+            },
+        )
         assert resp.status_code == 400
         assert "URL required" in resp.json()["error"]
 
     def test_whitespace_url_returns_400(self, client):
-        resp = client.post("/api/blocklists", json={
-            "url": "   ",
-            "name": "Bad",
-        })
+        resp = client.post(
+            "/api/blocklists",
+            json={
+                "url": "   ",
+                "name": "Bad",
+            },
+        )
         assert resp.status_code == 400
 
     def test_defaults_for_missing_fields(self, client, tmp_config):
@@ -71,9 +82,10 @@ class TestBlocklistSave:
 
 @pytest.mark.api
 class TestBlocklistDelete:
-
     def test_delete_blocklist(self, client, tmp_config):
-        resp = client.request("DELETE", "/api/blocklists", json={"url": "https://example.com/list.txt"})
+        resp = client.request(
+            "DELETE", "/api/blocklists", json={"url": "https://example.com/list.txt"}
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         urls = [bl["url"] for bl in config["blockLists"]]
@@ -92,7 +104,6 @@ class TestBlocklistDelete:
 
 @pytest.mark.api
 class TestBlocklistRefresh:
-
     def test_refresh_returns_reloaded(self, client):
         resp = client.post("/api/blocklists/refresh")
         assert resp.status_code == 200

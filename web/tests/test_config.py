@@ -8,10 +8,10 @@ import pytest
 
 @pytest.mark.unit
 class TestLoadConfig:
-
     def test_no_file_returns_defaults(self, tmp_config):
         with patch("app.CONFIG_PATH", tmp_config):
             from app import load_config
+
             config = load_config()
 
         assert config["enableBlocking"] is True
@@ -25,6 +25,7 @@ class TestLoadConfig:
         tmp_config.write_text(json.dumps(sample_config))
         with patch("app.CONFIG_PATH", tmp_config):
             from app import load_config
+
             config = load_config()
 
         assert config["enableBlocking"] is True
@@ -35,6 +36,7 @@ class TestLoadConfig:
         tmp_config.write_text(json.dumps({"enableBlocking": False, "_blockListsSeeded": True}))
         with patch("app.CONFIG_PATH", tmp_config):
             from app import load_config
+
             config = load_config()
 
         assert config["enableBlocking"] is False
@@ -43,16 +45,17 @@ class TestLoadConfig:
         tmp_config.write_text("not valid json{{{")
         with patch("app.CONFIG_PATH", tmp_config):
             from app import load_config
+
             with pytest.raises(json.JSONDecodeError):
                 load_config()
 
 
 @pytest.mark.unit
 class TestSaveConfig:
-
     def test_writes_file(self, tmp_config, sample_config):
         with patch("app.CONFIG_PATH", tmp_config):
             from app import save_config
+
             save_config(sample_config)
 
         saved = json.loads(tmp_config.read_text())
@@ -62,6 +65,7 @@ class TestSaveConfig:
         """Temp file should not remain after successful save."""
         with patch("app.CONFIG_PATH", tmp_config):
             from app import save_config
+
             save_config({"test": True})
 
         tmp_file = tmp_config.with_suffix(".tmp")
@@ -72,6 +76,7 @@ class TestSaveConfig:
         tmp_config.write_text(json.dumps(sample_config))
         with patch("app.CONFIG_PATH", tmp_config):
             from app import save_config
+
             save_config({"enableBlocking": False})
 
         saved = json.loads(tmp_config.read_text())
@@ -80,6 +85,7 @@ class TestSaveConfig:
     def test_indented_output(self, tmp_config):
         with patch("app.CONFIG_PATH", tmp_config):
             from app import save_config
+
             save_config({"key": "value", "nested": {"a": 1}})
 
         text = tmp_config.read_text()
@@ -89,16 +95,18 @@ class TestSaveConfig:
 
 @pytest.mark.unit
 class TestMigrateBlocklists:
-
     def test_objects_to_global_urls(self):
         from app import _migrate_blocklists
+
         config = {
             "profiles": {
                 "kids": {
                     "blockLists": [
                         {
-                            "url": "https://list1.txt", "name": "List 1",
-                            "enabled": True, "refreshHours": 24,
+                            "url": "https://list1.txt",
+                            "name": "List 1",
+                            "enabled": True,
+                            "refreshHours": 24,
                         },
                     ]
                 }
@@ -114,6 +122,7 @@ class TestMigrateBlocklists:
 
     def test_deduplicates_across_profiles(self):
         from app import _migrate_blocklists
+
         config = {
             "profiles": {
                 "kids": {"blockLists": [{"url": "https://same.txt"}]},
@@ -127,10 +136,9 @@ class TestMigrateBlocklists:
 
     def test_string_urls_not_migrated(self):
         from app import _migrate_blocklists
+
         config = {
-            "profiles": {
-                "kids": {"blockLists": ["https://already-migrated.txt"]}
-            },
+            "profiles": {"kids": {"blockLists": ["https://already-migrated.txt"]}},
             "blockLists": [],
         }
         changed = _migrate_blocklists(config)
@@ -140,6 +148,7 @@ class TestMigrateBlocklists:
 
     def test_idempotent(self):
         from app import _migrate_blocklists
+
         config = {
             "profiles": {"kids": {"blockLists": [{"url": "https://list.txt"}]}},
             "blockLists": [],
@@ -154,6 +163,7 @@ class TestMigrateBlocklists:
 
     def test_empty_url_skipped(self):
         from app import _migrate_blocklists
+
         config = {
             "profiles": {"kids": {"blockLists": [{"url": ""}, {"url": "https://good.txt"}]}},
             "blockLists": [],
@@ -164,6 +174,7 @@ class TestMigrateBlocklists:
 
     def test_no_profiles_no_error(self):
         from app import _migrate_blocklists
+
         config = {"profiles": {}, "blockLists": []}
         changed = _migrate_blocklists(config)
 
@@ -172,17 +183,23 @@ class TestMigrateBlocklists:
 
 @pytest.mark.unit
 class TestSeedDefaultBlocklists:
-
     def test_seeds_on_first_run(self, tmp_config):
         defaults_path = tmp_config.parent / "default-blocklists.json"
-        defaults_path.write_text(json.dumps([
-            {
-                "url": "https://default1.txt", "name": "Default 1",
-                "enabled": False, "refreshHours": 24,
-            },
-        ]))
+        defaults_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "url": "https://default1.txt",
+                        "name": "Default 1",
+                        "enabled": False,
+                        "refreshHours": 24,
+                    },
+                ]
+            )
+        )
         with patch("app.CONFIG_PATH", tmp_config):
             from app import _seed_default_blocklists
+
             config = {"blockLists": []}
             changed = _seed_default_blocklists(config)
 
@@ -193,6 +210,7 @@ class TestSeedDefaultBlocklists:
     def test_skips_when_already_seeded(self, tmp_config):
         with patch("app.CONFIG_PATH", tmp_config):
             from app import _seed_default_blocklists
+
             config = {"blockLists": [], "_blockListsSeeded": True}
             changed = _seed_default_blocklists(config)
 
@@ -200,12 +218,17 @@ class TestSeedDefaultBlocklists:
 
     def test_deduplicates_existing_urls(self, tmp_config):
         defaults_path = tmp_config.parent / "default-blocklists.json"
-        defaults_path.write_text(json.dumps([
-            {"url": "https://existing.txt", "name": "New Name"},
-            {"url": "https://new.txt", "name": "New"},
-        ]))
+        defaults_path.write_text(
+            json.dumps(
+                [
+                    {"url": "https://existing.txt", "name": "New Name"},
+                    {"url": "https://new.txt", "name": "New"},
+                ]
+            )
+        )
         with patch("app.CONFIG_PATH", tmp_config):
             from app import _seed_default_blocklists
+
             config = {
                 "blockLists": [{"url": "https://existing.txt", "name": "Old Name"}],
             }
@@ -218,6 +241,7 @@ class TestSeedDefaultBlocklists:
     def test_no_defaults_file_returns_false(self, tmp_config):
         with patch("app.CONFIG_PATH", tmp_config):
             from app import _seed_default_blocklists
+
             config = {"blockLists": []}
             changed = _seed_default_blocklists(config)
 

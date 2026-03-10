@@ -69,9 +69,7 @@ def _migrate_blocklists(config: JsonObj) -> bool:
     migrated = False
     global_lists = _as_list(config.setdefault("blockLists", []))
     global_urls: set[str] = {
-        _as_str(bl["url"])
-        for bl in global_lists
-        if isinstance(bl, dict) and bl.get("url")
+        _as_str(bl["url"]) for bl in global_lists if isinstance(bl, dict) and bl.get("url")
     }
 
     profiles = config.get("profiles")
@@ -115,8 +113,7 @@ def _seed_default_blocklists(config: JsonObj) -> bool:
     }
     defaults = cast(list[JsonObj], json.loads(defaults_path.read_text()))
     new_lists: list[JsonValue] = [
-        bl for bl in defaults
-        if _as_str(bl.get("url", "")) not in existing_urls
+        bl for bl in defaults if _as_str(bl.get("url", "")) not in existing_urls
     ]
     blocklists = config.get("blockLists")
     if isinstance(blocklists, list):
@@ -401,12 +398,14 @@ async def api_blocklist_save(request: Request) -> JSONResponse:
             bl_val["refreshHours"] = data.get("refreshHours", 24)
             break
     else:
-        blocklists.append({
-            "url": url,
-            "name": data.get("name", ""),
-            "enabled": data.get("enabled", True),
-            "refreshHours": data.get("refreshHours", 24),
-        })
+        blocklists.append(
+            {
+                "url": url,
+                "name": data.get("name", ""),
+                "enabled": data.get("enabled", True),
+                "refreshHours": data.get("refreshHours", 24),
+            }
+        )
 
     save_config(config)
     await reload_technitium_config(config)
@@ -418,7 +417,8 @@ async def api_blocklist_delete(request: Request) -> JSONResponse:
     config = load_config()
     url = _as_str(data.get("url", ""))
     config["blockLists"] = [
-        bl for bl in _as_list(config.get("blockLists") or [])
+        bl
+        for bl in _as_list(config.get("blockLists") or [])
         if not (isinstance(bl, dict) and bl.get("url") == url)
     ]
     # Remove URL references from profiles
@@ -509,7 +509,8 @@ async def api_rewrite_delete(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
     domain = _as_str(data.get("domain", "")).strip().lower().rstrip(".")
     profile["dnsRewrites"] = [
-        rw for rw in _as_list(profile.get("dnsRewrites") or [])
+        rw
+        for rw in _as_list(profile.get("dnsRewrites") or [])
         if not (isinstance(rw, dict) and _norm_domain(rw) == domain)
     ]
     save_config(config)

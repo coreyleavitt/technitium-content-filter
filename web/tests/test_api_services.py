@@ -7,7 +7,6 @@ from tests.conftest import read_config
 
 @pytest.mark.api
 class TestServicesGet:
-
     def test_returns_merged_services(self, client):
         resp = client.get("/api/services")
         assert resp.status_code == 200
@@ -34,13 +33,15 @@ class TestServicesGet:
 
 @pytest.mark.api
 class TestCustomServiceSave:
-
     def test_create_custom_service(self, client, tmp_config):
-        resp = client.post("/api/custom-services", json={
-            "id": "gaming",
-            "name": "Gaming Platforms",
-            "domains": ["steam.com", "epic.com"],
-        })
+        resp = client.post(
+            "/api/custom-services",
+            json={
+                "id": "gaming",
+                "name": "Gaming Platforms",
+                "domains": ["steam.com", "epic.com"],
+            },
+        )
         assert resp.status_code == 200
         config = read_config(tmp_config)
         assert "gaming" in config["customServices"]
@@ -48,28 +49,33 @@ class TestCustomServiceSave:
         assert len(config["customServices"]["gaming"]["domains"]) == 2
 
     def test_update_custom_service(self, client, tmp_config):
-        client.post("/api/custom-services", json={
-            "id": "my-streaming",
-            "name": "Updated Streaming",
-            "domains": ["new.com"],
-        })
+        client.post(
+            "/api/custom-services",
+            json={
+                "id": "my-streaming",
+                "name": "Updated Streaming",
+                "domains": ["new.com"],
+            },
+        )
         config = read_config(tmp_config)
         assert config["customServices"]["my-streaming"]["name"] == "Updated Streaming"
         assert config["customServices"]["my-streaming"]["domains"] == ["new.com"]
 
     def test_empty_domains(self, client, tmp_config):
-        client.post("/api/custom-services", json={
-            "id": "empty",
-            "name": "Empty",
-            "domains": [],
-        })
+        client.post(
+            "/api/custom-services",
+            json={
+                "id": "empty",
+                "name": "Empty",
+                "domains": [],
+            },
+        )
         config = read_config(tmp_config)
         assert config["customServices"]["empty"]["domains"] == []
 
 
 @pytest.mark.api
 class TestCustomServiceDelete:
-
     def test_delete_service(self, client, tmp_config):
         resp = client.request("DELETE", "/api/custom-services", json={"id": "my-streaming"})
         assert resp.status_code == 200
