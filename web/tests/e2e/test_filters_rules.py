@@ -12,9 +12,8 @@ class TestRulesContent:
         """Kids profile loads existing custom rules into textarea."""
         page.goto(f"{live_server}/filters/rules#kids")
         page.locator("#profilePicker").wait_for()
-        lines = page.locator("#rulesText").input_value().splitlines()
-        assert "blocked.com" in lines
-        assert "@@exception.com" in lines
+        lines = set(page.locator("#rulesText").input_value().splitlines())
+        assert lines == {"blocked.com", "@@exception.com"}
 
     def test_rule_count_excludes_comments(self, page, live_server):
         """Rule count excludes comment lines."""
