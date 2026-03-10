@@ -2,10 +2,21 @@ const pageData = JSON.parse(document.getElementById('page-data').textContent);
 let blockLists = pageData.blockLists || [];
 const profiles = pageData.profiles || {};
 
+// #82: Cache DOM elements
+const blocklistsListEl = document.getElementById('blocklistsList');
+const blocklistModalEl = document.getElementById('blocklistModal');
+const blModalTitleEl = document.getElementById('blModalTitle');
+const originalUrlEl = document.getElementById('originalUrl');
+const blNameEl = document.getElementById('blName');
+const blUrlEl = document.getElementById('blUrl');
+const blEnabledEl = document.getElementById('blEnabled');
+const blRefreshHoursEl = document.getElementById('blRefreshHours');
+const blocklistFormEl = document.getElementById('blocklistForm');
+const refreshBtnEl = document.getElementById('refreshBtn');
+
 function renderBlocklists() {
-    const container = document.getElementById('blocklistsList');
     if (blockLists.length === 0) {
-        container.innerHTML = '<div class="text-center py-12 bg-white rounded-lg shadow"><p class="text-gray-500">No blocklists configured. Add one to get started.</p></div>';
+        blocklistsListEl.innerHTML = '<div class="text-center py-12 bg-white rounded-lg shadow"><p class="text-gray-500">No blocklists configured. Add one to get started.</p></div>';
         return;
     }
 
@@ -22,18 +33,21 @@ function renderBlocklists() {
         const enabledClass = bl.enabled ? 'text-green-600' : 'text-gray-400';
         const enabledText = bl.enabled ? 'Enabled' : 'Disabled';
 
-        // Count which profiles use this blocklist
         const usingProfiles = Object.entries(profiles)
-            .filter(([, p]) => (p.blockLists || []).includes(bl.url))
-            .map(([name]) => name);
+            .filter(function ([, p]) { return (p.blockLists || []).includes(bl.url); })
+            .map(function ([name]) { return name; });
         const profileBadges = usingProfiles.length > 0
-            ? usingProfiles.map(n => '<span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">' + escapeHtml(n) + '</span>').join(' ')
+            ? usingProfiles.map(function (n) { return '<span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">' + escapeHtml(n) + '</span>'; }).join(' ')
             : '<span class="text-xs text-gray-400">None</span>';
 
+        // #85: Toggle button for enabled/disabled
+        const toggleLabel = bl.enabled ? 'Disable' : 'Enable';
         html += '<tr>' +
             '<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' + escapeHtml(bl.name || '--') + '</td>' +
             '<td class="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs truncate">' + escapeHtml(bl.url) + '</td>' +
-            '<td class="px-6 py-4 whitespace-nowrap text-xs ' + enabledClass + '">' + enabledText + '</td>' +
+            '<td class="px-6 py-4 whitespace-nowrap text-xs ' + enabledClass + '">' +
+            '<button data-toggle-bl="' + escapeHtml(bl.url) + '" class="hover:underline">' + enabledText + '</button>' +
+            '</td>' +
             '<td class="px-6 py-4"><div class="flex flex-wrap gap-1">' + profileBadges + '</div></td>' +
             '<td class="px-6 py-4 whitespace-nowrap text-right text-sm">' +
             '<button data-edit-bl="' + escapeHtml(bl.url) + '" class="text-indigo-600 hover:text-indigo-500 mr-2">Edit</button>' +
@@ -42,61 +56,114 @@ function renderBlocklists() {
     }
 
     html += '</tbody></table></div>';
-    container.innerHTML = html;
+    blocklistsListEl.innerHTML = html;
 }
 renderBlocklists();
 
-document.getElementById('blocklistsList').addEventListener('click', (e) => {
+// #89: Named event handler
+function handleBlocklistClick(e) {
     const editBtn = e.target.closest('[data-edit-bl]');
     if (editBtn) { openBlocklistModal(editBtn.dataset.editBl); return; }
     const deleteBtn = e.target.closest('[data-delete-bl]');
-    if (deleteBtn) { deleteBlocklist(deleteBtn.dataset.deleteBl); }
-});
+    if (deleteBtn) { deleteBlocklist(deleteBtn.dataset.deleteBl); return; }
+    // #85: Toggle blocklist enabled/disabled
+    const toggleBtn = e.target.closest('[data-toggle-bl]');
+    if (toggleBtn) { toggleBlocklist(toggleBtn.dataset.toggleBl); }
+}
+blocklistsListEl.addEventListener('click', handleBlocklistClick);
 
 function openBlocklistModal(url) {
-    const bl = url ? blockLists.find(b => b.url === url) : null;
-    document.getElementById('blModalTitle').textContent = bl ? 'Edit Blocklist' : 'Add Blocklist';
-    document.getElementById('originalUrl').value = url || '';
-    document.getElementById('blName').value = bl?.name || '';
-    document.getElementById('blUrl').value = bl?.url || '';
-    document.getElementById('blUrl').readOnly = !!bl;
-    document.getElementById('blEnabled').checked = bl?.enabled !== false;
-    document.getElementById('blRefreshHours').value = bl?.refreshHours || 24;
-    document.getElementById('blocklistModal').classList.remove('hidden');
+    const bl = url ? blockLists.find(function (b) { return b.url === url; }) : null;
+    blModalTitleEl.textContent = bl ? 'Edit Blocklist' : 'Add Blocklist';
+    originalUrlEl.value = url || '';
+    blNameEl.value = bl?.name || '';
+    blUrlEl.value = bl?.url || '';
+    blUrlEl.readOnly = !!bl;
+    blEnabledEl.checked = bl?.enabled !== false;
+    blRefreshHoursEl.value = bl?.refreshHours || 24;
+    blocklistModalEl.classList.remove('hidden');
 }
 
 function closeBlocklistModal() {
-    document.getElementById('blocklistModal').classList.add('hidden');
+    blocklistModalEl.classList.add('hidden');
 }
 
+// #81: Confirmation before delete
 async function deleteBlocklist(url) {
     if (!confirm('Remove this blocklist? It will also be unassigned from all profiles.')) return;
-    await apiCall('DELETE', '/api/blocklists', { url });
-    location.reload();
+    try {
+        await apiCall('DELETE', API_PATHS.blocklists, { url });
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    }
 }
 
+// #85: Toggle blocklist with toast feedback
+async function toggleBlocklist(url) {
+    const bl = blockLists.find(function (b) { return b.url === url; });
+    if (!bl) return;
+    const newEnabled = !bl.enabled;
+    try {
+        await apiCall('POST', API_PATHS.blocklists, {
+            url: bl.url,
+            name: bl.name,
+            enabled: newEnabled,
+            refreshHours: bl.refreshHours || 24,
+        });
+        bl.enabled = newEnabled;
+        renderBlocklists();
+        showToast('Blocklist ' + (newEnabled ? 'enabled' : 'disabled') + '.', 'success');
+    } catch (err) {
+        // error shown by apiCall
+    }
+}
+
+// #84: Refresh button with finally block to always reset state
 async function refreshBlocklists() {
-    const btn = document.getElementById('refreshBtn');
-    btn.textContent = 'Refreshing...';
-    btn.disabled = true;
-    const result = await apiCall('POST', '/api/blocklists/refresh');
-    btn.textContent = 'Refresh All';
-    btn.disabled = false;
-    if (result.error) { showToast(result.error, 'error'); } else { showToast('Blocklists refreshed.', 'success'); }
+    refreshBtnEl.textContent = 'Refreshing...';
+    refreshBtnEl.disabled = true;
+    try {
+        await apiCall('POST', API_PATHS.blocklistsRefresh);
+        showToast('Blocklists refreshed.', 'success');
+    } catch (err) {
+        // error shown by apiCall
+    } finally {
+        refreshBtnEl.textContent = 'Refresh All';
+        refreshBtnEl.disabled = false;
+    }
 }
 
-document.getElementById('blocklistForm').addEventListener('submit', async (e) => {
+// #72: URL validation; #76: loading state
+blocklistFormEl.addEventListener('submit', async function handleBlocklistSubmit(e) {
     e.preventDefault();
-    const url = document.getElementById('blUrl').value.trim();
-    if (!url) return;
+    const url = blUrlEl.value.trim();
+    if (!url) {
+        showToast('Blocklist URL is required.', 'error');
+        return;
+    }
 
-    const saveResult = await apiCall('POST', '/api/blocklists', {
-        url,
-        name: document.getElementById('blName').value.trim(),
-        enabled: document.getElementById('blEnabled').checked,
-        refreshHours: parseInt(document.getElementById('blRefreshHours').value) || 24,
-    });
-    if (saveResult.error) { showToast(saveResult.error, 'error'); return; }
-    showToast('Blocklist saved.', 'success');
-    location.reload();
+    // #72: Basic URL validation
+    try {
+        new URL(url);
+    } catch {
+        showToast('Please enter a valid URL.', 'error');
+        return;
+    }
+
+    const submitBtn = blocklistFormEl.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, true);
+    try {
+        await apiCall('POST', API_PATHS.blocklists, {
+            url,
+            name: blNameEl.value.trim(),
+            enabled: blEnabledEl.checked,
+            refreshHours: parseInt(blRefreshHoursEl.value) || 24,
+        });
+        location.reload();
+    } catch (err) {
+        // error shown by apiCall
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save');
+    }
 });
