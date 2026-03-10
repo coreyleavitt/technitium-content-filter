@@ -23,9 +23,11 @@ async function saveRules() {
     if (!currentProfile) return;
     const rules = document.getElementById('rulesText').value
         .split('\n').map(s => s.trim()).filter(Boolean);
-    await apiCall('POST', '/api/rules', { profile: currentProfile, rules });
+    const result = await apiCall('POST', '/api/rules', { profile: currentProfile, rules });
+    if (result.error) { showToast(result.error, 'error'); return; }
     profiles[currentProfile].customRules = rules;
     updateCount();
+    showToast('Rules saved.', 'success');
 }
 
 initProfilePicker('profilePicker', profiles, loadProfile);

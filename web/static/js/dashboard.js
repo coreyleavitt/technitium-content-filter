@@ -55,12 +55,14 @@ document.getElementById('toggleBlocking').addEventListener('click', async () => 
 // Settings form
 document.getElementById('settingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    await apiCall('POST', '/api/settings', {
+    const result = await apiCall('POST', '/api/settings', {
         enableBlocking: blocking,
         timeZone: document.getElementById('timeZone').value,
         defaultProfile: document.getElementById('defaultProfile').value || null,
         baseProfile: document.getElementById('baseProfile').value || null,
         scheduleAllDay: document.getElementById('scheduleAllDay').checked,
     });
+    if (result.error) { showToast(result.error, 'error'); return; }
+    showToast('Settings saved.', 'success');
     location.reload();
 });
