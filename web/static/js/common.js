@@ -1,5 +1,11 @@
 const BASE_PATH = document.querySelector('meta[name="base-path"]').content;
 
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 async function apiCall(method, url, data) {
     const opts = {
         method,

@@ -20,16 +20,20 @@ function renderRewrites() {
 
     let html = '';
     for (const rw of rewrites) {
-        const escapedDomain = rw.domain.replace(/'/g, "\\'").replace(/"/g, '&quot;');
         html += '<tr>' +
-            '<td class="px-6 py-3 text-sm font-mono text-gray-900">' + rw.domain + '</td>' +
-            '<td class="px-6 py-3 text-sm font-mono text-gray-600">' + rw.answer + '</td>' +
+            '<td class="px-6 py-3 text-sm font-mono text-gray-900">' + escapeHtml(rw.domain) + '</td>' +
+            '<td class="px-6 py-3 text-sm font-mono text-gray-600">' + escapeHtml(rw.answer) + '</td>' +
             '<td class="px-6 py-3 text-right">' +
-            '<button onclick="deleteRewrite(\'' + escapedDomain + '\')" class="text-sm text-red-600 hover:text-red-500">Delete</button>' +
+            '<button data-delete-rw="' + escapeHtml(rw.domain) + '" class="text-sm text-red-600 hover:text-red-500">Delete</button>' +
             '</td></tr>';
     }
     body.innerHTML = html;
 }
+
+document.getElementById('rewritesBody').addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('[data-delete-rw]');
+    if (deleteBtn) deleteRewrite(deleteBtn.dataset.deleteRw);
+});
 
 async function deleteRewrite(domain) {
     if (!currentProfile) return;

@@ -37,9 +37,9 @@ class TestAllowlistContent:
         """Kids profile loads existing allowlist domains into textarea."""
         page.goto(f"{live_server}/filters/allowlists#kids")
         page.locator("#profilePicker").wait_for()
-        text = page.locator("#allowListText").input_value()
-        assert "khanacademy.org" in text
-        assert "school.edu" in text
+        lines = page.locator("#allowListText").input_value().splitlines()
+        assert "khanacademy.org" in lines
+        assert "school.edu" in lines
 
     def test_domain_count(self, page, live_server):
         """Domain count label shows correct count."""
@@ -51,7 +51,7 @@ class TestAllowlistContent:
         """Switching profile loads that profile's allowlist."""
         page.goto(f"{live_server}/filters/allowlists#kids")
         page.locator("#profilePicker").wait_for()
-        assert "khanacademy.org" in page.locator("#allowListText").input_value()
+        assert "khanacademy.org" in page.locator("#allowListText").input_value().splitlines()
 
         page.locator("#profilePicker").select_option("adults")
         # Adults has empty allowlist

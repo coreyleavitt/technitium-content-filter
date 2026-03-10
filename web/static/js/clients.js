@@ -2,12 +2,6 @@ const pageData = JSON.parse(document.getElementById('page-data').textContent);
 const clients = pageData.clients;
 const profileNames = pageData.profileNames;
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
 function renderClients() {
     const container = document.getElementById('clientsList');
     if (clients.length === 0) {

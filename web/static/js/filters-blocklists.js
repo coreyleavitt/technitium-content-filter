@@ -21,24 +21,23 @@ function renderBlocklists() {
     for (const bl of blockLists) {
         const enabledClass = bl.enabled ? 'text-green-600' : 'text-gray-400';
         const enabledText = bl.enabled ? 'Enabled' : 'Disabled';
-        const escapedUrl = bl.url.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
         // Count which profiles use this blocklist
         const usingProfiles = Object.entries(profiles)
             .filter(([, p]) => (p.blockLists || []).includes(bl.url))
             .map(([name]) => name);
         const profileBadges = usingProfiles.length > 0
-            ? usingProfiles.map(n => '<span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">' + n + '</span>').join(' ')
+            ? usingProfiles.map(n => '<span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">' + escapeHtml(n) + '</span>').join(' ')
             : '<span class="text-xs text-gray-400">None</span>';
 
         html += '<tr>' +
-            '<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' + (bl.name || '--') + '</td>' +
-            '<td class="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs truncate">' + bl.url + '</td>' +
+            '<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' + escapeHtml(bl.name || '--') + '</td>' +
+            '<td class="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs truncate">' + escapeHtml(bl.url) + '</td>' +
             '<td class="px-6 py-4 whitespace-nowrap text-xs ' + enabledClass + '">' + enabledText + '</td>' +
             '<td class="px-6 py-4"><div class="flex flex-wrap gap-1">' + profileBadges + '</div></td>' +
             '<td class="px-6 py-4 whitespace-nowrap text-right text-sm">' +
-            '<button onclick="openBlocklistModal(\'' + escapedUrl + '\')" class="text-indigo-600 hover:text-indigo-500 mr-2">Edit</button>' +
-            '<button onclick="deleteBlocklist(\'' + escapedUrl + '\')" class="text-red-600 hover:text-red-500">Delete</button>' +
+            '<button data-edit-bl="' + escapeHtml(bl.url) + '" class="text-indigo-600 hover:text-indigo-500 mr-2">Edit</button>' +
+            '<button data-delete-bl="' + escapeHtml(bl.url) + '" class="text-red-600 hover:text-red-500">Delete</button>' +
             '</td></tr>';
     }
 
@@ -46,6 +45,13 @@ function renderBlocklists() {
     container.innerHTML = html;
 }
 renderBlocklists();
+
+document.getElementById('blocklistsList').addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-edit-bl]');
+    if (editBtn) { openBlocklistModal(editBtn.dataset.editBl); return; }
+    const deleteBtn = e.target.closest('[data-delete-bl]');
+    if (deleteBtn) { deleteBlocklist(deleteBtn.dataset.deleteBl); }
+});
 
 function openBlocklistModal(url) {
     const bl = url ? blockLists.find(b => b.url === url) : null;

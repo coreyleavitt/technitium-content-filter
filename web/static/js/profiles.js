@@ -10,9 +10,16 @@ const svcContainer = document.getElementById('servicesCheckboxes');
 for (const [id, svc] of Object.entries(services)) {
     const label = document.createElement('label');
     label.className = 'flex items-center space-x-2';
-    label.innerHTML = `<input type="checkbox" name="blockedServices" value="${id}"
-        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-        <span class="text-sm text-gray-700">${svc.name}</span>`;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.name = 'blockedServices';
+    cb.value = id;
+    cb.className = 'rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+    const span = document.createElement('span');
+    span.className = 'text-sm text-gray-700';
+    span.textContent = svc.name;
+    label.appendChild(cb);
+    label.appendChild(span);
     svcContainer.appendChild(label);
 }
 
@@ -24,11 +31,22 @@ if (globalBlockLists.length === 0) {
     for (const bl of globalBlockLists) {
         const label = document.createElement('label');
         label.className = 'flex items-center space-x-2';
-        const displayName = bl.name || bl.url;
-        label.innerHTML = `<input type="checkbox" name="profileBlockLists" value="${bl.url}"
-            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-            <span class="text-sm text-gray-700">${displayName}</span>
-            <span class="text-xs text-gray-400">${bl.enabled ? '' : '(disabled)'}</span>`;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = 'profileBlockLists';
+        cb.value = bl.url;
+        cb.className = 'rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'text-sm text-gray-700';
+        nameSpan.textContent = bl.name || bl.url;
+        label.appendChild(cb);
+        label.appendChild(nameSpan);
+        if (!bl.enabled) {
+            const disabledSpan = document.createElement('span');
+            disabledSpan.className = 'text-xs text-gray-400';
+            disabledSpan.textContent = '(disabled)';
+            label.appendChild(disabledSpan);
+        }
         blContainer.appendChild(label);
     }
 }
@@ -63,7 +81,7 @@ function renderProfiles() {
     for (const [name, profile] of entries) {
         const blocked = (profile.blockedServices || []).map(id => {
             const svc = services[id];
-            return '<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">' + (svc ? svc.name : id) + '</span>';
+            return '<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">' + escapeHtml(svc ? svc.name : id) + '</span>';
         }).join('') || '<span class="text-sm text-gray-400">None</span>';
 
         // Counts
@@ -100,14 +118,14 @@ function renderProfiles() {
             scheduleHtml += '</div></div>';
         }
 
-        const desc = profile.description ? '<p class="text-sm text-gray-500">' + profile.description + '</p>' : '';
-        const escapedName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const desc = profile.description ? '<p class="text-sm text-gray-500">' + escapeHtml(profile.description) + '</p>' : '';
+        const escapedName = escapeHtml(name);
         html += '<div class="bg-white shadow rounded-lg p-6">' +
             '<div class="flex justify-between items-start mb-4"><div>' +
-            '<h3 class="text-lg font-semibold text-gray-900">' + name + '</h3>' + desc +
+            '<h3 class="text-lg font-semibold text-gray-900">' + escapedName + '</h3>' + desc +
             '</div><div class="flex space-x-2">' +
-            '<button onclick="openProfileModal(\'' + escapedName + '\')" class="text-sm text-indigo-600 hover:text-indigo-500">Edit</button>' +
-            '<button onclick="deleteProfile(\'' + escapedName + '\')" class="text-sm text-red-600 hover:text-red-500">Delete</button>' +
+            '<button data-edit-profile="' + escapeHtml(name) + '" class="text-sm text-indigo-600 hover:text-indigo-500">Edit</button>' +
+            '<button data-delete-profile="' + escapeHtml(name) + '" class="text-sm text-red-600 hover:text-red-500">Delete</button>' +
             '</div></div>' +
             '<div><h4 class="text-sm font-medium text-gray-700 mb-2">Blocked Services</h4>' +
             '<div class="flex flex-wrap gap-2">' + blocked + '</div></div>' +
@@ -118,6 +136,13 @@ function renderProfiles() {
     container.innerHTML = html;
 }
 renderProfiles();
+
+document.getElementById('profilesList').addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-edit-profile]');
+    if (editBtn) { openProfileModal(editBtn.dataset.editProfile); return; }
+    const deleteBtn = e.target.closest('[data-delete-profile]');
+    if (deleteBtn) { deleteProfile(deleteBtn.dataset.deleteProfile); }
+});
 
 function openProfileModal(name) {
     const profile = name ? profiles[name] : null;
