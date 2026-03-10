@@ -20,10 +20,12 @@ public sealed class ProfileCompiler
     /// <summary>
     /// Compiles all profiles in the config into a dictionary of CompiledProfile keyed by profile name.
     /// If a base profile is set, its domains/rewrites are merged into all other profiles.
+    /// #16: Uses OrdinalIgnoreCase for profile dictionary.
     /// </summary>
     public Dictionary<string, CompiledProfile> CompileAll(AppConfig config)
     {
         // First pass: compile each profile standalone
+        // #16: Use OrdinalIgnoreCase for profile dictionary
         var standalone = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, profile) in config.Profiles)
         {
@@ -47,12 +49,11 @@ public sealed class ProfileCompiler
                 continue;
             }
 
-            // Merge: base blocked + profile blocked
+            // #20: Create new HashSet from union instead of mutating source sets
             var mergedBlocked = new HashSet<string>(baseCompiled.BlockedDomains, StringComparer.OrdinalIgnoreCase);
             foreach (var d in compiled.BlockedDomains)
                 mergedBlocked.Add(d);
 
-            // Merge: base allowed + profile allowed
             var mergedAllowed = new HashSet<string>(baseCompiled.AllowedDomains, StringComparer.OrdinalIgnoreCase);
             foreach (var d in compiled.AllowedDomains)
                 mergedAllowed.Add(d);
@@ -113,11 +114,16 @@ public sealed class ProfileCompiler
 
         // 4. Blocklist domains -- profile.BlockLists now contains URL strings
         //    that reference global config.BlockLists entries
-        if (_blockListManager is not null)
+        // #12: Null check/coalesce for profile.BlockLists
+        if (_blockListManager is not null && profile.BlockLists is not null)
         {
-            var globalByUrl = config.BlockLists
-                .Where(bl => bl.Enabled && !string.IsNullOrWhiteSpace(bl.Url))
-                .ToDictionary(bl => bl.Url, StringComparer.OrdinalIgnoreCase);
+            // #13: Deduplicate URLs using the globalByUrl dictionary (already deduped by key)
+            var globalByUrl = new Dictionary<string, BlockListConfig>(StringComparer.OrdinalIgnoreCase);
+            foreach (var bl in config.BlockLists)
+            {
+                if (bl.Enabled && !string.IsNullOrWhiteSpace(bl.Url))
+                    globalByUrl.TryAdd(bl.Url, bl);
+            }
 
             foreach (var url in profile.BlockLists)
             {

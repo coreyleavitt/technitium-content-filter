@@ -9,8 +9,9 @@ namespace ContentFilter.Models;
 /// </summary>
 public sealed class ScheduleConfig
 {
-    private TimeOnly? _startParsed;
-    private TimeOnly? _endParsed;
+    // #17: Use Lazy<T> for thread-safe lazy initialization of parsed times
+    private Lazy<TimeOnly?>? _startLazy;
+    private Lazy<TimeOnly?>? _endLazy;
 
     /// <summary>
     /// When true, the window covers the entire day regardless of start/end values.
@@ -26,15 +27,32 @@ public sealed class ScheduleConfig
 
     /// <summary>
     /// Parsed Start time. Cached after first access to avoid per-query parsing.
+    /// #17: Thread-safe via Lazy&lt;T&gt;.
     /// Returns null if the string is not a valid time.
     /// </summary>
     [JsonIgnore]
-    public TimeOnly? StartTime => _startParsed ??= TimeOnly.TryParse(Start, out var t) ? t : null;
+    public TimeOnly? StartTime
+    {
+        get
+        {
+            // Initialize Lazy on first access (captures current Start value)
+            _startLazy ??= new Lazy<TimeOnly?>(() => TimeOnly.TryParse(Start, out var t) ? t : null);
+            return _startLazy.Value;
+        }
+    }
 
     /// <summary>
     /// Parsed End time. Cached after first access to avoid per-query parsing.
+    /// #17: Thread-safe via Lazy&lt;T&gt;.
     /// Returns null if the string is not a valid time.
     /// </summary>
     [JsonIgnore]
-    public TimeOnly? EndTime => _endParsed ??= TimeOnly.TryParse(End, out var t) ? t : null;
+    public TimeOnly? EndTime
+    {
+        get
+        {
+            _endLazy ??= new Lazy<TimeOnly?>(() => TimeOnly.TryParse(End, out var t) ? t : null);
+            return _endLazy.Value;
+        }
+    }
 }
