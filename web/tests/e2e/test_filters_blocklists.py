@@ -112,6 +112,22 @@ class TestBlocklistDelete:
         assert len(config["blockLists"]) == 0
 
 
+class TestBlocklistDeleteCancel:
+    def test_delete_cancel_preserves_blocklist(self, page, live_server, config_path):
+        """Dismissing the confirm dialog preserves the blocklist."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+
+        initial_config = read_config(config_path)
+        initial_count = len(initial_config["blockLists"])
+
+        page.on("dialog", lambda dialog: dialog.dismiss())
+        page.locator("#blocklistsList button:has-text('Delete')").first.click()
+
+        config = read_config(config_path)
+        assert len(config["blockLists"]) == initial_count
+
+
 class TestBlocklistRefresh:
     def test_refresh_button(self, page, live_server):
         """Refresh All button changes text during refresh."""
@@ -122,6 +138,26 @@ class TestBlocklistRefresh:
         assert btn.text_content().strip() == "Refresh All"
         btn.click()
         # After the API call completes, button resets
+        page.wait_for_function(
+            "document.getElementById('refreshBtn').textContent.trim() === 'Refresh All'"
+        )
+
+    def test_refresh_button_shows_loading_state(self, page, live_server):
+        """Refresh button shows 'Refreshing...' text during the API call."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+
+        btn = page.locator("#refreshBtn")
+        assert btn.text_content().strip() == "Refresh All"
+
+        # Use evaluate to click and immediately capture the text
+        refreshing_text = page.evaluate("""() => {
+            document.getElementById('refreshBtn').click();
+            return document.getElementById('refreshBtn').textContent.trim();
+        }""")
+        assert refreshing_text == "Refreshing..."
+
+        # Wait for it to reset
         page.wait_for_function(
             "document.getElementById('refreshBtn').textContent.trim() === 'Refresh All'"
         )

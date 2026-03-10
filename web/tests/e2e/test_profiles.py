@@ -181,6 +181,45 @@ class TestProfileEdit:
         assert "grown-ups" in config["profiles"]
         assert config["profiles"]["grown-ups"]["description"] == "Adult profile"
 
+    def test_rename_cascades_client_unassignment(self, page, live_server, config_path):
+        """Renaming a profile clears it from clients that used the old name."""
+        page.goto(f"{live_server}/profiles")
+        page.locator("#profilesList").wait_for()
+
+        # Edit kids profile (first profile, used by iPad)
+        page.locator("#profilesList button:has-text('Edit')").first.click()
+        page.locator("#profileModal").wait_for(state="visible")
+        assert page.locator("#profileName").input_value() == "kids"
+
+        page.locator("#profileName").fill("children")
+        with page.expect_navigation():
+            page.locator("#profileForm button[type='submit']").click()
+
+        config = read_config(config_path)
+        # Old profile should be deleted, new one created
+        assert "kids" not in config["profiles"]
+        assert "children" in config["profiles"]
+        # iPad was assigned to "kids", which was deleted first -- client profile becomes ""
+        ipad = next(c for c in config["clients"] if c["name"] == "iPad")
+        assert ipad["profile"] == ""
+
+    def test_disable_schedule_clears_it(self, page, live_server, config_path):
+        """Unchecking schedule checkbox saves schedule as null."""
+        page.goto(f"{live_server}/profiles")
+        page.locator("#profilesList").wait_for()
+
+        # Edit kids profile (has a schedule)
+        page.locator("#profilesList button:has-text('Edit')").first.click()
+        page.locator("#profileModal").wait_for(state="visible")
+        assert page.locator("#enableSchedule").is_checked()
+
+        page.locator("#enableSchedule").uncheck()
+        with page.expect_navigation():
+            page.locator("#profileForm button[type='submit']").click()
+
+        config = read_config(config_path)
+        assert config["profiles"]["kids"]["schedule"] is None
+
 
 class TestProfileDelete:
     def test_delete_profile(self, page, live_server, config_path):

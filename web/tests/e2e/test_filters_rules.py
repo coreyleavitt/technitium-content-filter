@@ -7,6 +7,42 @@ from tests.e2e.conftest import read_config
 pytestmark = pytest.mark.e2e
 
 
+class TestRulesProfilePicker:
+    def test_profile_picker_loads(self, page, live_server):
+        """Profile picker populates with profile names."""
+        page.goto(f"{live_server}/filters/rules")
+        page.locator("#profilePicker").wait_for()
+        options = page.locator("#profilePicker option")
+        texts = [options.nth(i).text_content() for i in range(options.count())]
+        assert "kids" in texts
+        assert "adults" in texts
+
+    def test_hash_selects_profile(self, page, live_server):
+        """URL hash pre-selects the correct profile."""
+        page.goto(f"{live_server}/filters/rules#kids")
+        page.locator("#profilePicker").wait_for()
+        assert page.locator("#profilePicker").input_value() == "kids"
+
+    def test_empty_profiles(self, page, live_server_empty):
+        """No profiles shows disabled picker with placeholder."""
+        page.goto(f"{live_server_empty}/filters/rules")
+        page.locator("#profilePicker").wait_for()
+        assert page.locator("#profilePicker").is_disabled()
+        option_text = page.locator("#profilePicker option").text_content()
+        assert "No profiles available" in option_text
+
+    def test_switch_profile_loads_rules(self, page, live_server):
+        """Switching profile loads that profile's rules."""
+        page.goto(f"{live_server}/filters/rules#kids")
+        page.locator("#profilePicker").wait_for()
+        lines = page.locator("#rulesText").input_value().splitlines()
+        assert "blocked.com" in lines
+
+        page.locator("#profilePicker").select_option("adults")
+        # Adults has empty rules
+        assert page.locator("#rulesText").input_value() == ""
+
+
 class TestRulesContent:
     def test_loads_existing_rules(self, page, live_server):
         """Kids profile loads existing custom rules into textarea."""
@@ -49,3 +85,16 @@ class TestRulesSave:
             "@@new-allow.com",
             "# comment",
         ]
+
+    def test_save_empty_rules(self, page, live_server, config_path):
+        """Saving empty textarea persists an empty array."""
+        page.goto(f"{live_server}/filters/rules#kids")
+        page.locator("#profilePicker").wait_for()
+
+        page.locator("#rulesText").fill("")
+
+        with page.expect_response("**/api/rules"):
+            page.get_by_role("button", name="Save").click()
+
+        config = read_config(config_path)
+        assert config["profiles"]["kids"]["customRules"] == []

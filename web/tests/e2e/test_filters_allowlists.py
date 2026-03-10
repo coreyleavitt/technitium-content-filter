@@ -75,3 +75,18 @@ class TestAllowlistSave:
             "new-domain.com",
             "another.org",
         ]
+
+    def test_save_empty_allowlist(self, page, live_server, config_path):
+        """Saving empty textarea persists an empty array."""
+        page.goto(f"{live_server}/filters/allowlists#kids")
+        page.locator("#profilePicker").wait_for()
+
+        page.locator("#allowListText").fill("")
+        page.get_by_role("button", name="Save").click()
+
+        page.wait_for_function(
+            "document.getElementById('domainCount').textContent === '0 domains'"
+        )
+
+        config = read_config(config_path)
+        assert config["profiles"]["kids"]["allowList"] == []

@@ -110,6 +110,19 @@ class TestServiceDelete:
         assert "my-streaming" not in config["customServices"]
 
 
+class TestServiceDeleteCancel:
+    def test_delete_cancel_preserves_service(self, page, live_server, config_path):
+        """Dismissing the confirm dialog preserves the custom service."""
+        page.goto(f"{live_server}/filters/services")
+        page.locator("#customServicesList").wait_for()
+
+        page.on("dialog", lambda dialog: dialog.dismiss())
+        page.locator("#customServicesList button:has-text('Delete')").first.click()
+
+        config = read_config(config_path)
+        assert "my-streaming" in config["customServices"]
+
+
 class TestServiceModal:
     def test_modal_opens_and_closes(self, page, live_server):
         """Modal can be opened and cancelled."""

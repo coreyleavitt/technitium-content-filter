@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.e2e.conftest import read_config
+from tests.e2e.conftest import _start_server, read_config
 
 pytestmark = pytest.mark.e2e
 
@@ -133,6 +133,36 @@ class TestDashboardEmpty:
         page.wait_for_load_state("networkidle")
         assert page.get_by_text("No clients configured yet").is_visible()
         assert page.get_by_text("No profiles configured yet").is_visible()
+
+
+class TestTimezoneAutoDetect:
+    @pytest.fixture()
+    def live_server_utc(self, config_path, _services_path):
+        """Start app with timeZone set to UTC to trigger auto-detect."""
+        config = {
+            "enableBlocking": True,
+            "profiles": {},
+            "clients": [],
+            "defaultProfile": None,
+            "baseProfile": None,
+            "timeZone": "UTC",
+            "scheduleAllDay": True,
+            "customServices": {},
+            "blockLists": [],
+            "_blockListsSeeded": True,
+        }
+        base_url, shutdown = _start_server(config_path, _services_path, config)
+        yield base_url
+        shutdown()
+
+    def test_utc_timezone_triggers_auto_detect(self, page, live_server_utc, config_path):
+        """When timeZone is UTC, dashboard auto-detects browser TZ and saves it."""
+        page.goto(f"{live_server_utc}/")
+        page.wait_for_load_state("networkidle")
+
+        config = read_config(config_path)
+        # Browser timezone should replace UTC (Playwright uses system TZ)
+        assert config["timeZone"] != "UTC"
 
 
 class TestNavigation:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.e2e.conftest import read_config
+from tests.e2e.conftest import _start_server, read_config
 
 pytestmark = pytest.mark.e2e
 
@@ -143,6 +143,82 @@ class TestClientDelete:
 
         config = read_config(config_path)
         assert len(config["clients"]) == initial_count
+
+
+class TestClientEmptyIdentifiers:
+    def test_empty_ids_prevents_submission(self, page, live_server):
+        """Submitting with empty identifiers does not navigate away."""
+        page.goto(f"{live_server}/clients")
+        page.locator("#clientsList").wait_for()
+
+        page.get_by_role("button", name="Add Client").click()
+        page.locator("#clientModal").wait_for(state="visible")
+
+        page.locator("#clientName").fill("Empty Device")
+        # Leave identifiers empty
+        page.locator("#clientForm button[type='submit']").click()
+
+        # Modal should still be visible (no navigation occurred)
+        assert page.locator("#clientModal").is_visible()
+        assert "/clients" in page.url
+
+    def test_whitespace_ids_prevents_submission(self, page, live_server):
+        """Submitting with only whitespace/blank lines does not navigate away."""
+        page.goto(f"{live_server}/clients")
+        page.locator("#clientsList").wait_for()
+
+        page.get_by_role("button", name="Add Client").click()
+        page.locator("#clientModal").wait_for(state="visible")
+
+        page.locator("#clientName").fill("Whitespace Device")
+        page.locator("#clientIds").fill("   \n\n   \n")
+        page.locator("#clientForm button[type='submit']").click()
+
+        # Modal should still be visible (no navigation occurred)
+        assert page.locator("#clientModal").is_visible()
+
+
+class TestClientMissingProfile:
+    @pytest.fixture()
+    def live_server_missing_profile(self, config_path, _services_path):
+        """Start app with a client referencing a non-existent profile."""
+        config = {
+            "enableBlocking": True,
+            "profiles": {
+                "adults": {
+                    "description": "Adult profile",
+                    "blockedServices": [],
+                    "blockLists": [],
+                    "allowList": [],
+                    "customRules": [],
+                    "dnsRewrites": [],
+                },
+            },
+            "clients": [
+                {
+                    "name": "Orphaned Device",
+                    "ids": ["192.168.1.50"],
+                    "profile": "deleted-profile",
+                },
+            ],
+            "defaultProfile": None,
+            "baseProfile": None,
+            "timeZone": "America/Denver",
+            "scheduleAllDay": True,
+            "customServices": {},
+            "blockLists": [],
+            "_blockListsSeeded": True,
+        }
+        base_url, shutdown = _start_server(config_path, _services_path, config)
+        yield base_url
+        shutdown()
+
+    def test_missing_profile_badge(self, page, live_server_missing_profile):
+        """Client with non-existent profile shows '(missing)' badge."""
+        page.goto(f"{live_server_missing_profile}/clients")
+        page.locator("#clientsList").wait_for()
+        assert page.get_by_text("(missing)").is_visible()
+        assert page.get_by_text("deleted-profile").is_visible()
 
 
 class TestClientModal:
