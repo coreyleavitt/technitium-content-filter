@@ -12,6 +12,7 @@ const API_PATHS = {
     blocklists: '/api/blocklists',
     blocklistsRefresh: '/api/blocklists/refresh',
     customServices: '/api/custom-services',
+    testDomain: '/api/test-domain',
 };
 
 // #92: Global error boundary

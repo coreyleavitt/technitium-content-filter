@@ -259,6 +259,33 @@
         % endif
     </div>
 
+    <!-- Test Domain (#118) -->
+    <details class="bg-white shadow rounded-lg overflow-hidden">
+        <summary class="px-6 py-4 cursor-pointer text-sm font-semibold text-gray-900 hover:bg-gray-50">
+            Test Domain
+        </summary>
+        <div class="px-6 pb-6 pt-2 border-t border-gray-200">
+            <p class="text-sm text-gray-500 mb-4">Test how a domain would be evaluated by the filtering pipeline.</p>
+            <form id="testDomainForm" class="space-y-4 max-w-md">
+                <div>
+                    <label for="testDomainInput" class="block text-sm font-medium text-gray-700">Domain</label>
+                    <input type="text" id="testDomainInput" placeholder="example.com" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                </div>
+                <div>
+                    <label for="testClientIp" class="block text-sm font-medium text-gray-700">Client IP <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" id="testClientIp" placeholder="192.168.1.10"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                </div>
+                <button type="submit" id="testDomainBtn"
+                    class="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                    Test
+                </button>
+            </form>
+            <div id="testDomainResults" class="hidden mt-6"></div>
+        </div>
+    </details>
+
     <!-- Settings (collapsed) -->
     <details class="bg-white shadow rounded-lg overflow-hidden">
         <summary class="px-6 py-4 cursor-pointer text-sm font-semibold text-gray-900 hover:bg-gray-50">

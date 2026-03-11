@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -10,9 +11,11 @@ import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from mako.lookup import TemplateLookup
@@ -596,6 +599,144 @@ async def filters_rewrites_page(request: Request) -> HTMLResponse:
     return render("filters_rewrites.html", current="filters-rewrites", config=config)
 
 
+# --- Domain Test Helpers (#118) ---
+
+_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _domain_matches(domains: set[str], query: str) -> str | None:
+    """Subdomain-walking match, mirroring C# DomainMatcher.Matches."""
+    trimmed = query.rstrip(".").lower()
+    current = trimmed
+    while True:
+        if current in domains:
+            return current
+        dot = current.find(".")
+        if dot < 0 or dot == len(current) - 1:
+            break
+        current = current[dot + 1 :]
+    return None
+
+
+def _rewrite_matches(
+    rewrites: dict[str, str], query: str
+) -> tuple[str, str] | None:
+    """Subdomain-walking rewrite lookup, returns (matched_domain, answer) or None."""
+    trimmed = query.rstrip(".").lower()
+    current = trimmed
+    while True:
+        if current in rewrites:
+            return (current, rewrites[current])
+        dot = current.find(".")
+        if dot < 0 or dot == len(current) - 1:
+            break
+        current = current[dot + 1 :]
+    return None
+
+
+def _resolve_client_profile(
+    config: JsonObj, client_ip: str
+) -> tuple[str | None, str | None, str]:
+    """Resolve client IP to (profile_name, client_name, method)."""
+    clients = _as_list(config.get("clients") or [])
+    ip = ipaddress.ip_address(client_ip)
+
+    # Priority 1: Exact IP match
+    for client in clients:
+        if not isinstance(client, dict):
+            continue
+        for cid in _as_list(client.get("ids") or []):
+            cid_str = _as_str(cid)
+            if "/" not in cid_str:
+                try:
+                    if ip == ipaddress.ip_address(cid_str):
+                        return (
+                            _as_str(client.get("profile", "")),
+                            _as_str(client.get("name", "")),
+                            f"exact IP match ({cid_str})",
+                        )
+                except ValueError:
+                    continue
+
+    # Priority 2: CIDR longest prefix
+    best_profile: str | None = None
+    best_name: str | None = None
+    best_prefix = -1
+    best_cidr = ""
+    for client in clients:
+        if not isinstance(client, dict):
+            continue
+        for cid in _as_list(client.get("ids") or []):
+            cid_str = _as_str(cid)
+            if "/" in cid_str:
+                try:
+                    network = ipaddress.ip_network(cid_str, strict=False)
+                    if ip in network and network.prefixlen > best_prefix:
+                        best_profile = _as_str(client.get("profile", ""))
+                        best_name = _as_str(client.get("name", ""))
+                        best_prefix = network.prefixlen
+                        best_cidr = cid_str
+                except ValueError:
+                    continue
+
+    if best_profile is not None:
+        return (best_profile, best_name, f"CIDR match ({best_cidr})")
+
+    # Priority 3: Default profile
+    default = _as_str(config.get("defaultProfile", "") or "")
+    if default:
+        return (default, None, "default profile")
+
+    return (None, None, "no match")
+
+
+def _check_schedule_active(
+    profile: JsonObj, config: JsonObj
+) -> tuple[bool, str]:
+    """Check if blocking is active now for the profile's schedule."""
+    schedule = profile.get("schedule")
+    if not schedule or not isinstance(schedule, dict) or len(schedule) == 0:
+        return (True, "no schedule configured (always active)")
+
+    tz_str = _as_str(config.get("timeZone", "UTC") or "UTC")
+    try:
+        tz = ZoneInfo(tz_str)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    day_key = _DAY_KEYS[now.weekday()]
+
+    window = schedule.get(day_key)
+    if not window or not isinstance(window, dict):
+        return (True, f"no schedule entry for {day_key} (active by default)")
+
+    schedule_all_day = bool(config.get("scheduleAllDay", True))
+    if schedule_all_day or window.get("allDay"):
+        return (True, f"schedule active all day on {day_key}")
+
+    start_str = _as_str(window.get("start", ""))
+    end_str = _as_str(window.get("end", ""))
+    if not start_str or not end_str:
+        return (True, "schedule window missing start/end (active by default)")
+
+    current_minutes = now.hour * 60 + now.minute
+    sh, sm = (int(x) for x in start_str.split(":"))
+    eh, em = (int(x) for x in end_str.split(":"))
+    start_min = sh * 60 + sm
+    end_min = eh * 60 + em
+
+    if start_min <= end_min:
+        active = start_min <= current_minutes <= end_min
+    else:
+        active = current_minutes >= start_min or current_minutes <= end_min
+
+    time_now = now.strftime("%H:%M")
+    if active:
+        return (True, f"within schedule window {start_str}-{end_str} (now: {time_now} {tz_str})")
+    return (False, f"outside schedule window {start_str}-{end_str} (now: {time_now} {tz_str})")
+
+
 # --- API Routes ---
 
 
@@ -1035,6 +1176,295 @@ async def api_rewrite_delete(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+# --- Domain Test Endpoint (#118) ---
+
+
+async def api_test_domain(request: Request) -> JSONResponse:
+    """Simulate the filtering pipeline for a domain, optionally from a client IP."""
+    data = _validate_json_obj(await request.json())
+    domain = _as_str(data.get("domain", "")).strip().lower().rstrip(".")
+    if not domain:
+        return JSONResponse(
+            {"ok": False, "error": "Domain is required"}, status_code=400
+        )
+
+    client_ip = _as_str(data.get("clientIp", "")).strip()
+    if client_ip:
+        try:
+            ipaddress.ip_address(client_ip)
+        except ValueError:
+            return JSONResponse(
+                {"ok": False, "error": f"Invalid IP address: {client_ip}"},
+                status_code=400,
+            )
+
+    config = load_config()
+    services = load_blocked_services()
+    custom_services = config.get("customServices") or {}
+    steps: list[dict[str, str]] = []
+
+    # Step 1: Global blocking check
+    if not config.get("enableBlocking", True):
+        steps.append({
+            "step": "Blocking enabled",
+            "result": "ALLOW",
+            "detail": "Global blocking is disabled",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "ALLOW", "profile": None,
+            "rewriteAnswer": None, "steps": steps,
+        })
+    steps.append({
+        "step": "Blocking enabled",
+        "result": "PASS",
+        "detail": "Global blocking is active",
+    })
+
+    # Step 2: Resolve client to profile
+    profile_name: str | None = None
+    client_name: str | None = None
+    method = ""
+    if client_ip:
+        profile_name, client_name, method = _resolve_client_profile(config, client_ip)
+        client_detail = f"{method}"
+        if client_name:
+            client_detail += f" - client: {client_name}"
+        if profile_name:
+            steps.append({
+                "step": "Client resolution",
+                "result": "PASS",
+                "detail": f"Resolved to profile \"{profile_name}\" via {client_detail}",
+            })
+        else:
+            steps.append({
+                "step": "Client resolution",
+                "result": "PASS",
+                "detail": f"No profile resolved ({method})",
+            })
+    else:
+        default_profile = _as_str(config.get("defaultProfile", "") or "")
+        if default_profile:
+            profile_name = default_profile
+            steps.append({
+                "step": "Client resolution",
+                "result": "PASS",
+                "detail": f"No client IP provided, using default profile \"{default_profile}\"",
+            })
+        else:
+            steps.append({
+                "step": "Client resolution",
+                "result": "PASS",
+                "detail": "No client IP provided, no default profile set",
+            })
+
+    # Step 3: Profile lookup / base profile fallback
+    base_profile_name = _as_str(config.get("baseProfile", "") or "")
+    profiles = config.get("profiles") or {}
+    if not isinstance(profiles, dict):
+        profiles = {}
+
+    if not profile_name and base_profile_name:
+        profile_name = base_profile_name
+        steps.append({
+            "step": "Profile fallback",
+            "result": "PASS",
+            "detail": f"Using base profile \"{base_profile_name}\"",
+        })
+    elif not profile_name:
+        steps.append({
+            "step": "Profile fallback",
+            "result": "ALLOW",
+            "detail": "No profile assigned and no base profile configured",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "ALLOW", "profile": None,
+            "rewriteAnswer": None, "steps": steps,
+        })
+    else:
+        steps.append({
+            "step": "Profile fallback",
+            "result": "PASS",
+            "detail": f"Using profile \"{profile_name}\"",
+        })
+
+    profile = profiles.get(profile_name) if isinstance(profiles, dict) else None
+    if not profile or not isinstance(profile, dict):
+        steps.append({
+            "step": "Profile lookup",
+            "result": "ALLOW",
+            "detail": f"Profile \"{profile_name}\" not found in config",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "ALLOW", "profile": profile_name,
+            "rewriteAnswer": None, "steps": steps,
+        })
+
+    # Build merged sets (profile + base profile)
+    base_profile = (
+        profiles.get(base_profile_name)
+        if base_profile_name and base_profile_name != profile_name and isinstance(profiles, dict)
+        else None
+    )
+
+    # Build rewrites dict
+    rewrites: dict[str, str] = {}
+    if base_profile and isinstance(base_profile, dict):
+        for rw in _as_list(base_profile.get("dnsRewrites") or []):
+            if isinstance(rw, dict):
+                d = _as_str(rw.get("domain", "")).lower().rstrip(".")
+                if d:
+                    rewrites[d] = _as_str(rw.get("answer", ""))
+    for rw in _as_list(profile.get("dnsRewrites") or []):
+        if isinstance(rw, dict):
+            d = _as_str(rw.get("domain", "")).lower().rstrip(".")
+            if d:
+                rewrites[d] = _as_str(rw.get("answer", ""))
+
+    # Step 4: DNS rewrite check
+    rw_match = _rewrite_matches(rewrites, domain)
+    if rw_match:
+        steps.append({
+            "step": "DNS rewrite",
+            "result": "REWRITE",
+            "detail": f"Domain matches rewrite: {rw_match[0]} -> {rw_match[1]}",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "REWRITE", "profile": profile_name,
+            "rewriteAnswer": rw_match[1], "steps": steps,
+        })
+    steps.append({
+        "step": "DNS rewrite",
+        "result": "PASS",
+        "detail": (
+            f"No rewrite match ({len(rewrites)} rewrite"
+            f"{'s' if len(rewrites) != 1 else ''} checked)"
+        ),
+    })
+
+    # Build allowlist
+    allowed: set[str] = set()
+    if base_profile and isinstance(base_profile, dict):
+        for al_entry in _as_list(base_profile.get("allowList") or []):
+            allowed.add(_as_str(al_entry).lower().rstrip("."))
+    for al_entry in _as_list(profile.get("allowList") or []):
+        allowed.add(_as_str(al_entry).lower().rstrip("."))
+    # Also add @@-prefixed custom rules as allows
+    for rule_src in [profile, base_profile]:
+        if rule_src and isinstance(rule_src, dict):
+            for rule in _as_list(rule_src.get("customRules") or []):
+                r = _as_str(rule).strip()
+                if r.startswith("@@"):
+                    allowed.add(r[2:].lower().rstrip("."))
+
+    # Step 5: Allowlist check
+    allow_match = _domain_matches(allowed, domain)
+    if allow_match:
+        steps.append({
+            "step": "Allowlist",
+            "result": "ALLOW",
+            "detail": f"Domain matches allowlist entry: {allow_match}",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "ALLOW", "profile": profile_name,
+            "rewriteAnswer": None, "steps": steps,
+        })
+    steps.append({
+        "step": "Allowlist",
+        "result": "PASS",
+        "detail": (
+            f"No allowlist match ({len(allowed)} entr"
+            f"{'ies' if len(allowed) != 1 else 'y'} checked)"
+        ),
+    })
+
+    # Step 6: Schedule check
+    schedule_active, schedule_detail = _check_schedule_active(profile, config)
+    if not schedule_active:
+        steps.append({
+            "step": "Schedule",
+            "result": "ALLOW",
+            "detail": f"Blocking inactive: {schedule_detail}",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "ALLOW", "profile": profile_name,
+            "rewriteAnswer": None, "steps": steps,
+        })
+    steps.append({
+        "step": "Schedule",
+        "result": "PASS",
+        "detail": schedule_detail,
+    })
+
+    # Step 7: Build blocked domains (services + custom rules)
+    blocked: set[str] = set()
+    blocklist_urls: list[str] = []
+
+    for src in [profile, base_profile]:
+        if not src or not isinstance(src, dict):
+            continue
+        # Blocked services -> expand to domains
+        for svc_id in _as_list(src.get("blockedServices") or []):
+            svc_id_str = _as_str(svc_id)
+            # Check built-in services
+            svc = services.get(svc_id_str) if isinstance(services, dict) else None
+            if svc and isinstance(svc, dict):
+                for sd in _as_list(svc.get("domains") or []):
+                    blocked.add(_as_str(sd).lower())
+            # Check custom services
+            cs = custom_services.get(svc_id_str) if isinstance(custom_services, dict) else None
+            if cs and isinstance(cs, dict):
+                for sd in _as_list(cs.get("domains") or []):
+                    blocked.add(_as_str(sd).lower())
+        # Custom rules (non-@@ ones)
+        for rule in _as_list(src.get("customRules") or []):
+            r = _as_str(rule).strip()
+            if r and not r.startswith("@@") and not r.startswith("#"):
+                blocked.add(r.lower().rstrip("."))
+        # Collect blocklist URLs
+        for bl in _as_list(src.get("blockLists") or []):
+            bl_str = _as_str(bl)
+            if bl_str and bl_str not in blocklist_urls:
+                blocklist_urls.append(bl_str)
+
+    block_match = _domain_matches(blocked, domain)
+    if block_match:
+        steps.append({
+            "step": "Block check",
+            "result": "BLOCK",
+            "detail": f"Domain matches blocked entry: {block_match}",
+        })
+        return JSONResponse({
+            "ok": True, "verdict": "BLOCK", "profile": profile_name,
+            "rewriteAnswer": None, "steps": steps,
+        })
+
+    blocklist_note = ""
+    if blocklist_urls:
+        blocklist_note = (
+            f" Note: {len(blocklist_urls)} remote blocklist(s) assigned but"
+            " not checked (only available in DNS plugin memory)"
+        )
+    steps.append({
+        "step": "Block check",
+        "result": "PASS",
+        "detail": (
+            f"No match in {len(blocked)} blocked domain(s) from services/rules.{blocklist_note}"
+        ),
+    })
+
+    # Step 8: Default allow
+    steps.append({
+        "step": "Default",
+        "result": "ALLOW",
+        "detail": "No rules matched, domain is allowed",
+    })
+    return JSONResponse({
+        "ok": True, "verdict": "ALLOW", "profile": profile_name,
+        "rewriteAnswer": None, "steps": steps,
+        "blocklistUrls": blocklist_urls if blocklist_urls else None,
+    })
+
+
 # #42 / #58: Lifespan handler for httpx client lifecycle
 @asynccontextmanager
 async def lifespan(app_instance: Starlette) -> AsyncIterator[None]:
@@ -1078,6 +1508,7 @@ routes = [
     Route("/api/rules", api_rules_save, methods=["POST"]),
     Route("/api/rewrites", api_rewrite_save, methods=["POST"]),
     Route("/api/rewrites", api_rewrite_delete, methods=["DELETE"]),
+    Route("/api/test-domain", api_test_domain, methods=["POST"]),
     Mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static"),
 ]
 
