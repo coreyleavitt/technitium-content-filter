@@ -34,10 +34,14 @@ jobs:
         run: |
           COV_FILE=$(find coverage -name "coverage.cobertura.xml" | head -1)
           if [ -n "$COV_FILE" ]; then
+            # Fix permissions (coverage dir created by Docker as root)
+            sudo chown -R $(id -u):$(id -g) coverage/
+
             dotnet tool install -g dotnet-reportgenerator-globaltool
+            mkdir -p dotnet-report/htmlcov
             reportgenerator \
               -reports:"$COV_FILE" \
-              -targetdir:coverage/htmlcov \
+              -targetdir:dotnet-report/htmlcov \
               -reporttypes:Html
 
             LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' "$COV_FILE" | head -1)
@@ -46,7 +50,7 @@ jobs:
             elif [ "$PCT" -ge 80 ]; then COLOR="green";
             elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
             else COLOR="red"; fi
-            cat > coverage/coverage-badge.json << EOF
+            cat > dotnet-report/coverage-badge.json << EOF
             {"schemaVersion":1,"label":"C# coverage","message":"${PCT}%","color":"${COLOR}"}
           EOF
           fi
@@ -56,9 +60,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: dotnet-coverage-report
-          path: |
-            coverage/htmlcov/
-            coverage/coverage-badge.json
+          path: dotnet-report/
           if-no-files-found: ignore
 
   python-test:
