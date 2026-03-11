@@ -84,9 +84,7 @@ class TestAllowlistSave:
         page.locator("#allowListText").fill("")
         page.get_by_role("button", name="Save").click()
 
-        page.wait_for_function(
-            "document.getElementById('domainCount').textContent === '0 domains'"
-        )
+        page.wait_for_function("document.getElementById('domainCount').textContent === '0 domains'")
 
         config = read_config(config_path)
         assert config["profiles"]["kids"]["allowList"] == []

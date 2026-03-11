@@ -46,19 +46,21 @@ config_lock = asyncio.Lock()
 _http_client: httpx.AsyncClient | None = None
 
 # #40: Allowlist of valid top-level config keys
-_VALID_CONFIG_KEYS = frozenset({
-    "enableBlocking",
-    "profiles",
-    "clients",
-    "defaultProfile",
-    "baseProfile",
-    "timeZone",
-    "scheduleAllDay",
-    "customServices",
-    "blockLists",
-    "_blockListsSeeded",
-    "settings",
-})
+_VALID_CONFIG_KEYS = frozenset(
+    {
+        "enableBlocking",
+        "profiles",
+        "clients",
+        "defaultProfile",
+        "baseProfile",
+        "timeZone",
+        "scheduleAllDay",
+        "customServices",
+        "blockLists",
+        "_blockListsSeeded",
+        "settings",
+    }
+)
 
 # #54: Simple rate limiter state
 _rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
@@ -76,9 +78,7 @@ def _get_session_secret() -> str:
     if env_secret:
         return env_secret
     if TECHNITIUM_API_TOKEN:
-        return hashlib.sha256(
-            f"content-filter-session:{TECHNITIUM_API_TOKEN}".encode()
-        ).hexdigest()
+        return hashlib.sha256(f"content-filter-session:{TECHNITIUM_API_TOKEN}".encode()).hexdigest()
     return secrets.token_hex(32)
 
 
@@ -182,9 +182,7 @@ def _seed_default_blocklists(config: JsonObj) -> bool:
         for bl in (raw_blocklists if isinstance(raw_blocklists, list) else [])
         if isinstance(bl, dict)
     }
-    defaults: list[JsonObj] = _validate_json_obj_list(
-        json.loads(defaults_path.read_text())
-    )
+    defaults: list[JsonObj] = _validate_json_obj_list(json.loads(defaults_path.read_text()))
     new_lists: list[JsonValue] = [
         bl for bl in defaults if _as_str(bl.get("url", "")) not in existing_urls
     ]
@@ -307,6 +305,7 @@ def _check_rate_limit(client_ip: str) -> bool:
 
 
 # --- Middleware ---
+
 
 class CSRFMiddleware:
     """CSRF protection via Origin header checking for state-changing requests (#47)."""
@@ -499,13 +498,14 @@ async def dashboard(request: Request) -> HTMLResponse:
     profiles_map = _as_obj(profiles_dict) if isinstance(profiles_dict, dict) else {}
 
     protected_clients = [
-        c for c in all_clients
+        c
+        for c in all_clients
         if isinstance(c, dict) and c.get("profile") and c["profile"] in profiles_map
     ]
     unprotected_clients = [
-        c for c in all_clients
-        if isinstance(c, dict)
-        and (not c.get("profile") or c["profile"] not in profiles_map)
+        c
+        for c in all_clients
+        if isinstance(c, dict) and (not c.get("profile") or c["profile"] not in profiles_map)
     ]
     total_blocked_services: set[str] = set()
     total_custom_rules = 0
@@ -519,10 +519,13 @@ async def dashboard(request: Request) -> HTMLResponse:
             total_blocked_services.update(str(s) for s in svc_list if isinstance(s, str))
         rules = p_val.get("customRules")
         if isinstance(rules, list):
-            total_custom_rules += len([
-                r for r in rules
-                if isinstance(r, str) and r.strip() and not r.strip().startswith("#")
-            ])
+            total_custom_rules += len(
+                [
+                    r
+                    for r in rules
+                    if isinstance(r, str) and r.strip() and not r.strip().startswith("#")
+                ]
+            )
         allow = p_val.get("allowList")
         if isinstance(allow, list):
             total_allow_entries += len([a for a in allow if isinstance(a, str) and a.strip()])
@@ -618,9 +621,7 @@ def _domain_matches(domains: set[str], query: str) -> str | None:
     return None
 
 
-def _rewrite_matches(
-    rewrites: dict[str, str], query: str
-) -> tuple[str, str] | None:
+def _rewrite_matches(rewrites: dict[str, str], query: str) -> tuple[str, str] | None:
     """Subdomain-walking rewrite lookup, returns (matched_domain, answer) or None."""
     trimmed = query.rstrip(".").lower()
     current = trimmed
@@ -634,9 +635,7 @@ def _rewrite_matches(
     return None
 
 
-def _resolve_client_profile(
-    config: JsonObj, client_ip: str
-) -> tuple[str | None, str | None, str]:
+def _resolve_client_profile(config: JsonObj, client_ip: str) -> tuple[str | None, str | None, str]:
     """Resolve client IP to (profile_name, client_name, method)."""
     clients = _as_list(config.get("clients") or [])
     ip = ipaddress.ip_address(client_ip)
@@ -690,9 +689,7 @@ def _resolve_client_profile(
     return (None, None, "no match")
 
 
-def _check_schedule_active(
-    profile: JsonObj, config: JsonObj
-) -> tuple[bool, str]:
+def _check_schedule_active(profile: JsonObj, config: JsonObj) -> tuple[bool, str]:
     """Check if blocking is active now for the profile's schedule."""
     schedule = profile.get("schedule")
     if not schedule or not isinstance(schedule, dict) or len(schedule) == 0:
@@ -1184,9 +1181,7 @@ async def api_test_domain(request: Request) -> JSONResponse:
     data = _validate_json_obj(await request.json())
     domain = _as_str(data.get("domain", "")).strip().lower().rstrip(".")
     if not domain:
-        return JSONResponse(
-            {"ok": False, "error": "Domain is required"}, status_code=400
-        )
+        return JSONResponse({"ok": False, "error": "Domain is required"}, status_code=400)
 
     client_ip = _as_str(data.get("clientIp", "")).strip()
     if client_ip:
@@ -1205,20 +1200,29 @@ async def api_test_domain(request: Request) -> JSONResponse:
 
     # Step 1: Global blocking check
     if not config.get("enableBlocking", True):
-        steps.append({
+        steps.append(
+            {
+                "step": "Blocking enabled",
+                "result": "ALLOW",
+                "detail": "Global blocking is disabled",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": None,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
+    steps.append(
+        {
             "step": "Blocking enabled",
-            "result": "ALLOW",
-            "detail": "Global blocking is disabled",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "ALLOW", "profile": None,
-            "rewriteAnswer": None, "steps": steps,
-        })
-    steps.append({
-        "step": "Blocking enabled",
-        "result": "PASS",
-        "detail": "Global blocking is active",
-    })
+            "result": "PASS",
+            "detail": "Global blocking is active",
+        }
+    )
 
     # Step 2: Resolve client to profile
     profile_name: str | None = None
@@ -1230,32 +1234,40 @@ async def api_test_domain(request: Request) -> JSONResponse:
         if client_name:
             client_detail += f" - client: {client_name}"
         if profile_name:
-            steps.append({
-                "step": "Client resolution",
-                "result": "PASS",
-                "detail": f"Resolved to profile \"{profile_name}\" via {client_detail}",
-            })
+            steps.append(
+                {
+                    "step": "Client resolution",
+                    "result": "PASS",
+                    "detail": f'Resolved to profile "{profile_name}" via {client_detail}',
+                }
+            )
         else:
-            steps.append({
-                "step": "Client resolution",
-                "result": "PASS",
-                "detail": f"No profile resolved ({method})",
-            })
+            steps.append(
+                {
+                    "step": "Client resolution",
+                    "result": "PASS",
+                    "detail": f"No profile resolved ({method})",
+                }
+            )
     else:
         default_profile = _as_str(config.get("defaultProfile", "") or "")
         if default_profile:
             profile_name = default_profile
-            steps.append({
-                "step": "Client resolution",
-                "result": "PASS",
-                "detail": f"No client IP provided, using default profile \"{default_profile}\"",
-            })
+            steps.append(
+                {
+                    "step": "Client resolution",
+                    "result": "PASS",
+                    "detail": f'No client IP provided, using default profile "{default_profile}"',
+                }
+            )
         else:
-            steps.append({
-                "step": "Client resolution",
-                "result": "PASS",
-                "detail": "No client IP provided, no default profile set",
-            })
+            steps.append(
+                {
+                    "step": "Client resolution",
+                    "result": "PASS",
+                    "detail": "No client IP provided, no default profile set",
+                }
+            )
 
     # Step 3: Profile lookup / base profile fallback
     base_profile_name = _as_str(config.get("baseProfile", "") or "")
@@ -1265,39 +1277,57 @@ async def api_test_domain(request: Request) -> JSONResponse:
 
     if not profile_name and base_profile_name:
         profile_name = base_profile_name
-        steps.append({
-            "step": "Profile fallback",
-            "result": "PASS",
-            "detail": f"Using base profile \"{base_profile_name}\"",
-        })
+        steps.append(
+            {
+                "step": "Profile fallback",
+                "result": "PASS",
+                "detail": f'Using base profile "{base_profile_name}"',
+            }
+        )
     elif not profile_name:
-        steps.append({
-            "step": "Profile fallback",
-            "result": "ALLOW",
-            "detail": "No profile assigned and no base profile configured",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "ALLOW", "profile": None,
-            "rewriteAnswer": None, "steps": steps,
-        })
+        steps.append(
+            {
+                "step": "Profile fallback",
+                "result": "ALLOW",
+                "detail": "No profile assigned and no base profile configured",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": None,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
     else:
-        steps.append({
-            "step": "Profile fallback",
-            "result": "PASS",
-            "detail": f"Using profile \"{profile_name}\"",
-        })
+        steps.append(
+            {
+                "step": "Profile fallback",
+                "result": "PASS",
+                "detail": f'Using profile "{profile_name}"',
+            }
+        )
 
     profile = profiles.get(profile_name) if isinstance(profiles, dict) else None
     if not profile or not isinstance(profile, dict):
-        steps.append({
-            "step": "Profile lookup",
-            "result": "ALLOW",
-            "detail": f"Profile \"{profile_name}\" not found in config",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "ALLOW", "profile": profile_name,
-            "rewriteAnswer": None, "steps": steps,
-        })
+        steps.append(
+            {
+                "step": "Profile lookup",
+                "result": "ALLOW",
+                "detail": f'Profile "{profile_name}" not found in config',
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
 
     # Build merged sets (profile + base profile)
     base_profile = (
@@ -1323,23 +1353,32 @@ async def api_test_domain(request: Request) -> JSONResponse:
     # Step 4: DNS rewrite check
     rw_match = _rewrite_matches(rewrites, domain)
     if rw_match:
-        steps.append({
+        steps.append(
+            {
+                "step": "DNS rewrite",
+                "result": "REWRITE",
+                "detail": f"Domain matches rewrite: {rw_match[0]} -> {rw_match[1]}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "REWRITE",
+                "profile": profile_name,
+                "rewriteAnswer": rw_match[1],
+                "steps": steps,
+            }
+        )
+    steps.append(
+        {
             "step": "DNS rewrite",
-            "result": "REWRITE",
-            "detail": f"Domain matches rewrite: {rw_match[0]} -> {rw_match[1]}",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "REWRITE", "profile": profile_name,
-            "rewriteAnswer": rw_match[1], "steps": steps,
-        })
-    steps.append({
-        "step": "DNS rewrite",
-        "result": "PASS",
-        "detail": (
-            f"No rewrite match ({len(rewrites)} rewrite"
-            f"{'s' if len(rewrites) != 1 else ''} checked)"
-        ),
-    })
+            "result": "PASS",
+            "detail": (
+                f"No rewrite match ({len(rewrites)} rewrite"
+                f"{'s' if len(rewrites) != 1 else ''} checked)"
+            ),
+        }
+    )
 
     # Build allowlist
     allowed: set[str] = set()
@@ -1359,41 +1398,59 @@ async def api_test_domain(request: Request) -> JSONResponse:
     # Step 5: Allowlist check
     allow_match = _domain_matches(allowed, domain)
     if allow_match:
-        steps.append({
+        steps.append(
+            {
+                "step": "Allowlist",
+                "result": "ALLOW",
+                "detail": f"Domain matches allowlist entry: {allow_match}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
+    steps.append(
+        {
             "step": "Allowlist",
-            "result": "ALLOW",
-            "detail": f"Domain matches allowlist entry: {allow_match}",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "ALLOW", "profile": profile_name,
-            "rewriteAnswer": None, "steps": steps,
-        })
-    steps.append({
-        "step": "Allowlist",
-        "result": "PASS",
-        "detail": (
-            f"No allowlist match ({len(allowed)} entr"
-            f"{'ies' if len(allowed) != 1 else 'y'} checked)"
-        ),
-    })
+            "result": "PASS",
+            "detail": (
+                f"No allowlist match ({len(allowed)} entr"
+                f"{'ies' if len(allowed) != 1 else 'y'} checked)"
+            ),
+        }
+    )
 
     # Step 6: Schedule check
     schedule_active, schedule_detail = _check_schedule_active(profile, config)
     if not schedule_active:
-        steps.append({
+        steps.append(
+            {
+                "step": "Schedule",
+                "result": "ALLOW",
+                "detail": f"Blocking inactive: {schedule_detail}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
+    steps.append(
+        {
             "step": "Schedule",
-            "result": "ALLOW",
-            "detail": f"Blocking inactive: {schedule_detail}",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "ALLOW", "profile": profile_name,
-            "rewriteAnswer": None, "steps": steps,
-        })
-    steps.append({
-        "step": "Schedule",
-        "result": "PASS",
-        "detail": schedule_detail,
-    })
+            "result": "PASS",
+            "detail": schedule_detail,
+        }
+    )
 
     # Step 7: Build blocked domains (services + custom rules)
     blocked: set[str] = set()
@@ -1428,15 +1485,22 @@ async def api_test_domain(request: Request) -> JSONResponse:
 
     block_match = _domain_matches(blocked, domain)
     if block_match:
-        steps.append({
-            "step": "Block check",
-            "result": "BLOCK",
-            "detail": f"Domain matches blocked entry: {block_match}",
-        })
-        return JSONResponse({
-            "ok": True, "verdict": "BLOCK", "profile": profile_name,
-            "rewriteAnswer": None, "steps": steps,
-        })
+        steps.append(
+            {
+                "step": "Block check",
+                "result": "BLOCK",
+                "detail": f"Domain matches blocked entry: {block_match}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "BLOCK",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
 
     blocklist_note = ""
     if blocklist_urls:
@@ -1444,25 +1508,34 @@ async def api_test_domain(request: Request) -> JSONResponse:
             f" Note: {len(blocklist_urls)} remote blocklist(s) assigned but"
             " not checked (only available in DNS plugin memory)"
         )
-    steps.append({
-        "step": "Block check",
-        "result": "PASS",
-        "detail": (
-            f"No match in {len(blocked)} blocked domain(s) from services/rules.{blocklist_note}"
-        ),
-    })
+    steps.append(
+        {
+            "step": "Block check",
+            "result": "PASS",
+            "detail": (
+                f"No match in {len(blocked)} blocked domain(s) from services/rules.{blocklist_note}"
+            ),
+        }
+    )
 
     # Step 8: Default allow
-    steps.append({
-        "step": "Default",
-        "result": "ALLOW",
-        "detail": "No rules matched, domain is allowed",
-    })
-    return JSONResponse({
-        "ok": True, "verdict": "ALLOW", "profile": profile_name,
-        "rewriteAnswer": None, "steps": steps,
-        "blocklistUrls": blocklist_urls if blocklist_urls else None,
-    })
+    steps.append(
+        {
+            "step": "Default",
+            "result": "ALLOW",
+            "detail": "No rules matched, domain is allowed",
+        }
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "verdict": "ALLOW",
+            "profile": profile_name,
+            "rewriteAnswer": None,
+            "steps": steps,
+            "blocklistUrls": blocklist_urls if blocklist_urls else None,
+        }
+    )
 
 
 # #42 / #58: Lifespan handler for httpx client lifecycle

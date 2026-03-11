@@ -55,7 +55,7 @@ class TestServiceCreate:
         ]
 
     def test_builtin_id_conflict(self, page, live_server):
-        """Alert prevents saving a custom service with a built-in ID."""
+        """Toast prevents saving a custom service with a built-in ID."""
         page.goto(f"{live_server}/filters/services")
         page.locator("#customServicesList").wait_for()
 
@@ -66,13 +66,12 @@ class TestServiceCreate:
         page.locator("#serviceName").fill("Fake YouTube")
         page.locator("#serviceDomains").fill("fake.com")
 
-        alert_text = []
-        page.on("dialog", lambda d: (alert_text.append(d.message), d.accept()))
         page.locator("#serviceForm button[type='submit']").click()
 
-        # Should have triggered an alert about conflicting ID
-        page.wait_for_function("true", timeout=2000)  # let dialog handler fire
-        assert any("youtube" in t for t in alert_text)
+        # App uses showToast instead of alert for validation errors
+        toast = page.locator("[role='alert']")
+        toast.wait_for(state="visible", timeout=3000)
+        assert "youtube" in toast.text_content().lower()
 
 
 class TestServiceEdit:

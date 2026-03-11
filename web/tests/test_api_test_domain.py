@@ -59,9 +59,7 @@ class TestTestDomainBlockingDisabled:
 class TestTestDomainClientResolution:
     def test_exact_ip_match(self, client, tmp_config):
         config = read_config(tmp_config)
-        config["clients"] = [
-            {"name": "iPad", "ids": ["10.0.0.5"], "profile": "kids"}
-        ]
+        config["clients"] = [{"name": "iPad", "ids": ["10.0.0.5"], "profile": "kids"}]
         _set_profile(tmp_config, config, {"kids": _empty_profile()})
 
         resp = client.post(
@@ -74,9 +72,7 @@ class TestTestDomainClientResolution:
 
     def test_cidr_match(self, client, tmp_config):
         config = read_config(tmp_config)
-        config["clients"] = [
-            {"name": "LAN", "ids": ["192.168.1.0/24"], "profile": "kids"}
-        ]
+        config["clients"] = [{"name": "LAN", "ids": ["192.168.1.0/24"], "profile": "kids"}]
         _set_profile(tmp_config, config, {"kids": _empty_profile()})
 
         resp = client.post(
@@ -91,7 +87,8 @@ class TestTestDomainClientResolution:
         config = read_config(tmp_config)
         config["clients"] = []
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile()},
             defaultProfile="kids",
         )
@@ -121,7 +118,8 @@ class TestTestDomainClientResolution:
     def test_no_client_ip_uses_default(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile()},
             defaultProfile="kids",
         )
@@ -137,14 +135,13 @@ class TestTestDomainRewrite:
         config = read_config(tmp_config)
         rw = [{"domain": "ads.example.com", "answer": "0.0.0.0"}]  # noqa: S104
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(dnsRewrites=rw)},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "ads.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "ads.example.com"})
         data = resp.json()
         assert data["verdict"] == "REWRITE"
         assert data["rewriteAnswer"] == "0.0.0.0"  # noqa: S104
@@ -153,14 +150,13 @@ class TestTestDomainRewrite:
         config = read_config(tmp_config)
         rw = [{"domain": "example.com", "answer": "1.2.3.4"}]
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(dnsRewrites=rw)},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "sub.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "sub.example.com"})
         data = resp.json()
         assert data["verdict"] == "REWRITE"
 
@@ -170,38 +166,37 @@ class TestTestDomainAllowlist:
     def test_allowlisted_domain(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
-            {"kids": _empty_profile(
-                allowList=["safe.example.com"],
-                customRules=["example.com"],
-            )},
+            tmp_config,
+            config,
+            {
+                "kids": _empty_profile(
+                    allowList=["safe.example.com"],
+                    customRules=["example.com"],
+                )
+            },
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "safe.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
-        assert any(
-            s["step"] == "Allowlist" and s["result"] == "ALLOW"
-            for s in data["steps"]
-        )
+        assert any(s["step"] == "Allowlist" and s["result"] == "ALLOW" for s in data["steps"])
 
     def test_exception_rule_allows(self, client, tmp_config):
         """@@-prefixed custom rules act as allowlist entries."""
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
-            {"kids": _empty_profile(
-                customRules=["example.com", "@@safe.example.com"],
-            )},
+            tmp_config,
+            config,
+            {
+                "kids": _empty_profile(
+                    customRules=["example.com", "@@safe.example.com"],
+                )
+            },
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "safe.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
 
@@ -211,65 +206,67 @@ class TestTestDomainBlocking:
     def test_blocked_service(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(blockedServices=["test-svc"])},
             defaultProfile="kids",
         )
         services_path = tmp_config.parent / "blocked-services.json"
-        services_path.write_text(json.dumps({
-            "test-svc": {
-                "name": "Test Service",
-                "domains": ["blocked.example.com", "blocked2.test"],
-            }
-        }))
-
-        resp = client.post(
-            "/api/test-domain", json={"domain": "blocked.example.com"}
+        services_path.write_text(
+            json.dumps(
+                {
+                    "test-svc": {
+                        "name": "Test Service",
+                        "domains": ["blocked.example.com", "blocked2.test"],
+                    }
+                }
+            )
         )
+
+        resp = client.post("/api/test-domain", json={"domain": "blocked.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"
 
     def test_custom_rule_blocks(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
-            {"kids": _empty_profile(
-                customRules=["malware.example.com"],
-            )},
+            tmp_config,
+            config,
+            {
+                "kids": _empty_profile(
+                    customRules=["malware.example.com"],
+                )
+            },
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "malware.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "malware.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"
 
     def test_subdomain_blocked(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(customRules=["example.com"])},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "sub.deep.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "sub.deep.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"
 
     def test_allowed_domain_passes(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile()},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "safe.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
 
@@ -279,7 +276,8 @@ class TestTestDomainBaseProfile:
     def test_base_profile_blocks_merged(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {
                 "base": _empty_profile(customRules=["ads.example.com"]),
                 "kids": _empty_profile(),
@@ -288,16 +286,15 @@ class TestTestDomainBaseProfile:
             baseProfile="base",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "ads.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "ads.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"
 
     def test_profile_allowlist_overrides_base_block(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {
                 "base": _empty_profile(customRules=["example.com"]),
                 "kids": _empty_profile(allowList=["safe.example.com"]),
@@ -306,9 +303,7 @@ class TestTestDomainBaseProfile:
             baseProfile="base",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "safe.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
 
@@ -318,14 +313,13 @@ class TestTestDomainStepsStructure:
     def test_steps_have_required_fields(self, client, tmp_config):
         config = read_config(tmp_config)
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile()},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "example.com"})
         data = resp.json()
         assert data["ok"] is True
         assert "steps" in data
@@ -339,14 +333,13 @@ class TestTestDomainStepsStructure:
         config = read_config(tmp_config)
         bl_url = "https://example.com/hosts.txt"
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(blockLists=[bl_url])},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "something.test"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "something.test"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
         assert data.get("blocklistUrls") == [bl_url]
@@ -363,13 +356,12 @@ class TestTestDomainCustomServices:
             }
         }
         _set_profile(
-            tmp_config, config,
+            tmp_config,
+            config,
             {"kids": _empty_profile(blockedServices=["my-svc"])},
             defaultProfile="kids",
         )
 
-        resp = client.post(
-            "/api/test-domain", json={"domain": "custom.example.com"}
-        )
+        resp = client.post("/api/test-domain", json={"domain": "custom.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"

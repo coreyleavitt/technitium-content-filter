@@ -181,8 +181,8 @@ class TestProfileEdit:
         assert "grown-ups" in config["profiles"]
         assert config["profiles"]["grown-ups"]["description"] == "Adult profile"
 
-    def test_rename_cascades_client_unassignment(self, page, live_server, config_path):
-        """Renaming a profile clears it from clients that used the old name."""
+    def test_rename_cascades_client_reassignment(self, page, live_server, config_path):
+        """Renaming a profile updates client assignments to the new name."""
         page.goto(f"{live_server}/profiles")
         page.locator("#profilesList").wait_for()
 
@@ -199,9 +199,9 @@ class TestProfileEdit:
         # Old profile should be deleted, new one created
         assert "kids" not in config["profiles"]
         assert "children" in config["profiles"]
-        # iPad was assigned to "kids", which was deleted first -- client profile becomes ""
+        # The rename endpoint atomically updates client assignments to the new name
         ipad = next(c for c in config["clients"] if c["name"] == "iPad")
-        assert ipad["profile"] == ""
+        assert ipad["profile"] == "children"
 
     def test_disable_schedule_clears_it(self, page, live_server, config_path):
         """Unchecking schedule checkbox saves schedule as null."""

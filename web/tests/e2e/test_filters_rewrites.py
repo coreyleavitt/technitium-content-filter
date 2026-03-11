@@ -117,6 +117,7 @@ class TestRewriteDelete:
         body = page.locator("#rewritesBody")
         assert body.get_by_text("search.com", exact=True).is_visible()
 
+        page.on("dialog", lambda dialog: dialog.accept())
         body.locator("button:has-text('Delete')").first.click()
 
         # Row should disappear -- table shows empty message

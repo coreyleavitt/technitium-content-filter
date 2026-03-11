@@ -92,7 +92,7 @@ class TestMalformedJsonConfig:
 
     def test_syntax_error_json_raises(self, tmp_config):
         """JSON with syntax errors should raise JSONDecodeError."""
-        tmp_config.write_text('{enableBlocking: true}')
+        tmp_config.write_text("{enableBlocking: true}")
         with patch("app.CONFIG_PATH", tmp_config):
             from app import load_config
 
@@ -765,7 +765,7 @@ class TestUnicodeProfileNames:
         resp = client.post(
             "/api/profiles",
             json={
-                "name": "test <script> & \"quotes\"",
+                "name": 'test <script> & "quotes"',
                 "description": "XSS-like name",
                 "blockedServices": [],
                 "blockLists": [],
@@ -776,7 +776,7 @@ class TestUnicodeProfileNames:
         )
         assert resp.status_code == 200
         config = read_config(tmp_config)
-        assert "test <script> & \"quotes\"" in config["profiles"]
+        assert 'test <script> & "quotes"' in config["profiles"]
 
     def test_unicode_profile_delete(self, client, tmp_config):
         """Profile with unicode name can be deleted."""
@@ -1073,9 +1073,7 @@ class TestErrorResponseFormatConsistency:
 
     def test_allowlist_missing_profile_error_format(self, client):
         """POST /api/allowlists with nonexistent profile returns consistent error."""
-        resp = client.post(
-            "/api/allowlists", json={"profile": "nonexistent", "domains": ["x.com"]}
-        )
+        resp = client.post("/api/allowlists", json={"profile": "nonexistent", "domains": ["x.com"]})
         assert resp.status_code == 400
         data = resp.json()
         assert data["ok"] is False
@@ -1137,15 +1135,28 @@ class TestErrorResponseFormatConsistency:
             ("POST", "/api/profiles", {"name": "ok-test", "blockedServices": []}),
             ("DELETE", "/api/profiles", {"name": "nonexistent"}),
             ("POST", "/api/clients", {"name": "ok-dev", "ids": ["10.0.0.1"], "profile": ""}),
-            ("POST", "/api/settings", {
-                "enableBlocking": True, "timeZone": "UTC",
-                "defaultProfile": "", "baseProfile": "", "scheduleAllDay": True,
-            }),
+            (
+                "POST",
+                "/api/settings",
+                {
+                    "enableBlocking": True,
+                    "timeZone": "UTC",
+                    "defaultProfile": "",
+                    "baseProfile": "",
+                    "scheduleAllDay": True,
+                },
+            ),
             ("POST", "/api/custom-services", {"id": "ok-svc", "name": "OK", "domains": []}),
             ("DELETE", "/api/custom-services", {"id": "nonexistent"}),
-            ("POST", "/api/blocklists", {
-                "url": "https://ok-test.com/l.txt", "name": "OK", "enabled": True,
-            }),
+            (
+                "POST",
+                "/api/blocklists",
+                {
+                    "url": "https://ok-test.com/l.txt",
+                    "name": "OK",
+                    "enabled": True,
+                },
+            ),
             ("DELETE", "/api/blocklists", {"url": "nonexistent"}),
         ]
         for method, path, body in endpoints:

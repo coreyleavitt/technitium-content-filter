@@ -155,37 +155,48 @@ class TestTimezoneAutoDetect:
         yield base_url
         shutdown()
 
-    def test_utc_timezone_triggers_auto_detect(self, page, live_server_utc, config_path):
+    def test_utc_timezone_triggers_auto_detect(self, browser, live_server_utc, config_path):
         """When timeZone is UTC, dashboard auto-detects browser TZ and saves it."""
-        page.goto(f"{live_server_utc}/")
-        page.wait_for_load_state("networkidle")
+        # Use an explicit non-UTC timezone so the auto-detect replaces UTC
+        context = browser.new_context(timezone_id="America/New_York")
+        tz_page = context.new_page()
+        try:
+            tz_page.goto(f"{live_server_utc}/")
+            tz_page.wait_for_load_state("networkidle")
 
-        config = read_config(config_path)
-        # Browser timezone should replace UTC (Playwright uses system TZ)
-        assert config["timeZone"] != "UTC"
+            config = read_config(config_path)
+            # Browser timezone should replace UTC
+            assert config["timeZone"] != "UTC"
+        finally:
+            context.close()
 
 
 class TestNavigation:
     def test_nav_to_profiles(self, page, live_server):
         page.goto(f"{live_server}/")
-        page.locator("nav").get_by_role("link", name="Profiles").click()
+        # Scope to desktop nav to avoid matching mobile nav duplicate
+        desktop_nav = page.locator("nav .hidden.md\\:flex")
+        desktop_nav.get_by_role("link", name="Profiles").click()
         page.wait_for_load_state("networkidle")
         assert "/profiles" in page.url
 
     def test_nav_to_clients(self, page, live_server):
         page.goto(f"{live_server}/")
-        page.locator("nav").get_by_role("link", name="Clients").click()
+        # Scope to desktop nav to avoid matching mobile nav duplicate
+        desktop_nav = page.locator("nav .hidden.md\\:flex")
+        desktop_nav.get_by_role("link", name="Clients").click()
         page.wait_for_load_state("networkidle")
         assert "/clients" in page.url
 
     def test_filters_dropdown(self, page, live_server):
         """Filters dropdown opens and shows sub-links."""
         page.goto(f"{live_server}/")
-        page.locator("#filtersMenu").click()
-        dropdown = page.locator("#filtersDropdown")
+        page.locator("#filtersDropdown button").click()
+        dropdown = page.locator("#filtersMenu")
         dropdown.wait_for(state="visible")
-        assert page.get_by_role("link", name="DNS Blocklists").is_visible()
-        assert page.get_by_role("link", name="DNS Allowlists").is_visible()
-        assert page.get_by_role("link", name="Blocked Services").is_visible()
-        assert page.get_by_role("link", name="Custom Filtering Rules").is_visible()
-        assert page.get_by_role("link", name="DNS Rewrites").is_visible()
+        # Scope assertions to the desktop dropdown menu to avoid mobile nav duplicates
+        assert dropdown.get_by_role("link", name="DNS Blocklists").is_visible()
+        assert dropdown.get_by_role("link", name="DNS Allowlists").is_visible()
+        assert dropdown.get_by_role("link", name="Blocked Services").is_visible()
+        assert dropdown.get_by_role("link", name="Custom Filtering Rules").is_visible()
+        assert dropdown.get_by_role("link", name="DNS Rewrites").is_visible()
