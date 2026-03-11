@@ -10,13 +10,11 @@ from starlette.testclient import TestClient
 @pytest.fixture(autouse=True)
 def _clear_rate_limit():
     """Clear rate limiter state between tests to prevent cross-test interference."""
-    import app as app_module
+    import middleware
 
-    if hasattr(app_module, "_rate_limit_buckets"):
-        app_module._rate_limit_buckets.clear()
+    middleware._rate_limit_buckets.clear()
     yield
-    if hasattr(app_module, "_rate_limit_buckets"):
-        app_module._rate_limit_buckets.clear()
+    middleware._rate_limit_buckets.clear()
 
 
 @pytest.fixture()
@@ -106,69 +104,64 @@ def sample_config():
 
 
 @pytest.fixture()
-def client(tmp_config, sample_config):
+def make_client(tmp_config):
+    """Factory fixture for creating patched TestClients."""
+    _patches: list = []
+    _mocks: list = []
+
+    def _factory(config_data=None, *, auth_disabled=True, raise_exceptions=True):
+        if config_data is not None:
+            tmp_config.write_text(json.dumps(config_data, indent=2))
+        services_path = tmp_config.parent / "blocked-services.json"
+        patches = [
+            patch("config.CONFIG_PATH", tmp_config),
+            patch("config.BLOCKED_SERVICES_PATH", services_path),
+            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("config.AUTH_DISABLED", auth_disabled),
+        ]
+        for p in patches:
+            p.start()
+        _patches.extend(patches)
+        mock = respx.mock(assert_all_called=False)
+        mock.start()
+        mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
+            return_value=Response(200, json={"status": "ok"})
+        )
+        _mocks.append(mock)
+        from app import app
+
+        return TestClient(app, raise_server_exceptions=raise_exceptions)
+
+    yield _factory
+    for p in reversed(_patches):
+        p.stop()
+    for m in _mocks:
+        m.stop()
+
+
+@pytest.fixture()
+def client(make_client, sample_config):
     """Starlette TestClient with patched module globals."""
-    tmp_config.write_text(json.dumps(sample_config, indent=2))
-    services_path = tmp_config.parent / "blocked-services.json"
-
-    with (
-        patch("app.CONFIG_PATH", tmp_config),
-        patch("app.BLOCKED_SERVICES_PATH", services_path),
-        patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("app.AUTH_DISABLED", True),
-        respx.mock(assert_all_called=False) as mock,
-    ):
-        mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
-            return_value=Response(200, json={"status": "ok"})
-        )
-        from app import app
-
-        yield TestClient(app, raise_server_exceptions=True)
+    return make_client(sample_config)
 
 
 @pytest.fixture()
-def client_empty(tmp_config, empty_config):
+def client_empty(make_client):
     """TestClient with empty config (first-run scenario)."""
-    # Don't write config file -- simulates first run
-    services_path = tmp_config.parent / "blocked-services.json"
-
-    with (
-        patch("app.CONFIG_PATH", tmp_config),
-        patch("app.BLOCKED_SERVICES_PATH", services_path),
-        patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("app.AUTH_DISABLED", True),
-        respx.mock(assert_all_called=False) as mock,
-    ):
-        mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
-            return_value=Response(200, json={"status": "ok"})
-        )
-        from app import app
-
-        yield TestClient(app, raise_server_exceptions=True)
+    return make_client(None)
 
 
 @pytest.fixture()
-def client_permissive(tmp_config, sample_config):
+def client_permissive(make_client, sample_config):
     """TestClient that returns 500 instead of raising on server errors."""
-    tmp_config.write_text(json.dumps(sample_config, indent=2))
-    services_path = tmp_config.parent / "blocked-services.json"
+    return make_client(sample_config, raise_exceptions=False)
 
-    with (
-        patch("app.CONFIG_PATH", tmp_config),
-        patch("app.BLOCKED_SERVICES_PATH", services_path),
-        patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("app.AUTH_DISABLED", True),
-        respx.mock(assert_all_called=False) as mock,
-    ):
-        mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
-            return_value=Response(200, json={"status": "ok"})
-        )
-        from app import app
 
-        yield TestClient(app, raise_server_exceptions=False)
+@pytest.fixture()
+def client_with_auth(make_client, sample_config):
+    """TestClient with auth ENABLED (not bypassed)."""
+    return make_client(sample_config, auth_disabled=False)
 
 
 def read_config(tmp_config) -> dict:

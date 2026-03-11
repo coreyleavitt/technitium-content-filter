@@ -1,34 +1,10 @@
 """Tests for authentication (#103)."""
 
-import json
 from unittest.mock import patch
 
 import pytest
 import respx
 from httpx import Response
-from starlette.testclient import TestClient
-
-
-@pytest.fixture()
-def client_with_auth(tmp_config, sample_config):
-    """TestClient with auth ENABLED (not bypassed)."""
-    tmp_config.write_text(json.dumps(sample_config, indent=2))
-    services_path = tmp_config.parent / "blocked-services.json"
-
-    with (
-        patch("app.CONFIG_PATH", tmp_config),
-        patch("app.BLOCKED_SERVICES_PATH", services_path),
-        patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("app.AUTH_DISABLED", False),
-        respx.mock(assert_all_called=False) as mock,
-    ):
-        mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
-            return_value=Response(200, json={"status": "ok"})
-        )
-        from app import app
-
-        yield TestClient(app, raise_server_exceptions=True)
 
 
 @pytest.mark.unit
@@ -185,7 +161,7 @@ class TestSessionExpiry:
             )
 
         # Expire the session by setting SESSION_EXPIRY to 0
-        with patch("app.SESSION_EXPIRY", 0):
+        with patch("config.SESSION_EXPIRY", 0):
             resp = client_with_auth.get("/", follow_redirects=False)
             assert resp.status_code == 302
             assert "/login" in resp.headers["location"]

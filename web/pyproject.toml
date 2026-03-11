@@ -29,7 +29,7 @@ package = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=app --cov-report=term-missing -m 'not e2e'"
+addopts = "-v --tb=short --cov=app --cov=config --cov=filtering --cov=middleware --cov=routes --cov-report=term-missing -m 'not e2e'"
 markers = [
     "unit: Unit tests (config, migrations, helpers)",
     "api: API endpoint tests",
@@ -51,7 +51,7 @@ docs = [
 
 [tool.mypy]
 strict = true
-files = ["app.py"]
+files = ["app.py", "config.py", "filtering.py", "middleware.py", "routes.py"]
 
 [[tool.mypy.overrides]]
 module = "mako.*"

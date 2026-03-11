@@ -15,14 +15,14 @@ class TestReloadTechnitiumConfig:
     async def test_reload_success(self):
         """Successful reload returns True."""
         with (
-            patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("app.TECHNITIUM_URL", "http://mock:5380"),
+            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("config.TECHNITIUM_URL", "http://mock:5380"),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import reload_technitium_config
+            from config import reload_technitium_config
 
             result = await reload_technitium_config({"enableBlocking": True})
 
@@ -32,14 +32,14 @@ class TestReloadTechnitiumConfig:
     async def test_reload_server_error(self):
         """Technitium returning 500 causes reload to return False."""
         with (
-            patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("app.TECHNITIUM_URL", "http://mock:5380"),
+            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("config.TECHNITIUM_URL", "http://mock:5380"),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://mock:5380/api/apps/config/set").mock(
                 return_value=Response(500, text="Internal Server Error")
             )
-            from app import reload_technitium_config
+            from config import reload_technitium_config
 
             result = await reload_technitium_config({"enableBlocking": True})
 
@@ -48,8 +48,8 @@ class TestReloadTechnitiumConfig:
     @pytest.mark.asyncio
     async def test_reload_no_token(self):
         """No API token means reload is skipped."""
-        with patch("app.TECHNITIUM_API_TOKEN", ""):
-            from app import reload_technitium_config
+        with patch("config.TECHNITIUM_API_TOKEN", ""):
+            from config import reload_technitium_config
 
             result = await reload_technitium_config({"enableBlocking": True})
 
@@ -61,14 +61,14 @@ class TestReloadTechnitiumConfig:
         import httpx as httpx_mod
 
         with (
-            patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("app.TECHNITIUM_URL", "http://unreachable:5380"),
+            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("config.TECHNITIUM_URL", "http://unreachable:5380"),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://unreachable:5380/api/apps/config/set").mock(
                 side_effect=httpx_mod.ConnectError("Connection refused")
             )
-            from app import reload_technitium_config
+            from config import reload_technitium_config
 
             result = await reload_technitium_config({"enableBlocking": True})
 
@@ -81,7 +81,7 @@ class TestReadApiToken:
         token_file = tmp_path / "token.txt"
         token_file.write_text("  my-secret-token  \n")
         with patch.dict(os.environ, {"TECHNITIUM_API_TOKEN_FILE": str(token_file)}):
-            from app import _read_api_token
+            from config import _read_api_token
 
             assert _read_api_token() == "my-secret-token"
 
@@ -91,7 +91,7 @@ class TestReadApiToken:
             env = os.environ.copy()
             env.pop("TECHNITIUM_API_TOKEN_FILE", None)
             with patch.dict(os.environ, env, clear=True):
-                from app import _read_api_token
+                from config import _read_api_token
 
                 assert _read_api_token() == "env-token"
 
@@ -103,7 +103,7 @@ class TestReadApiToken:
                 "TECHNITIUM_API_TOKEN": "fallback",
             },
         ):
-            from app import _read_api_token
+            from config import _read_api_token
 
             assert _read_api_token() == "fallback"
 
@@ -112,7 +112,7 @@ class TestReadApiToken:
         env.pop("TECHNITIUM_API_TOKEN_FILE", None)
         env.pop("TECHNITIUM_API_TOKEN", None)
         with patch.dict(os.environ, env, clear=True):
-            from app import _read_api_token
+            from config import _read_api_token
 
             assert _read_api_token() == ""
 
@@ -120,16 +120,16 @@ class TestReadApiToken:
 @pytest.mark.unit
 class TestLoadBlockedServices:
     def test_missing_file_returns_empty(self, tmp_path):
-        with patch("app.BLOCKED_SERVICES_PATH", tmp_path / "nonexistent.json"):
-            from app import load_blocked_services
+        with patch("config.BLOCKED_SERVICES_PATH", tmp_path / "nonexistent.json"):
+            from config import load_blocked_services
 
             assert load_blocked_services() == {}
 
     def test_loads_from_file(self, tmp_path):
         services_file = tmp_path / "services.json"
         services_file.write_text(json.dumps({"youtube": {"name": "YouTube", "domains": []}}))
-        with patch("app.BLOCKED_SERVICES_PATH", services_file):
-            from app import load_blocked_services
+        with patch("config.BLOCKED_SERVICES_PATH", services_file):
+            from config import load_blocked_services
 
             result = load_blocked_services()
             assert "youtube" in result
@@ -138,19 +138,19 @@ class TestLoadBlockedServices:
 @pytest.mark.unit
 class TestJsonNarrowing:
     def test_as_obj_raises_on_non_dict(self):
-        from app import _as_obj
+        from config import _as_obj
 
         with pytest.raises(TypeError, match="Expected dict"):
             _as_obj("not a dict")
 
     def test_as_list_raises_on_non_list(self):
-        from app import _as_list
+        from config import _as_list
 
         with pytest.raises(TypeError, match="Expected list"):
             _as_list("not a list")
 
     def test_as_str_returns_empty_for_non_str(self):
-        from app import _as_str
+        from config import _as_str
 
         assert _as_str(42) == ""
         assert _as_str(None) == ""
@@ -176,8 +176,8 @@ class TestSeedBlocklistsEdgeCases:
         )
         config_path = tmp_path / "dnsApp.config"
 
-        with patch("app.CONFIG_PATH", config_path):
-            from app import _seed_default_blocklists
+        with patch("config.CONFIG_PATH", config_path):
+            from config import _seed_default_blocklists
 
             config: dict[str, object] = {"blockLists": "not-a-list"}
             changed = _seed_default_blocklists(config)
@@ -210,8 +210,8 @@ class TestLoadConfigMigrationSave:
         }
         config_path.write_text(json.dumps(old_config))
 
-        with patch("app.CONFIG_PATH", config_path):
-            from app import load_config
+        with patch("config.CONFIG_PATH", config_path):
+            from config import load_config
 
             config = load_config()
 

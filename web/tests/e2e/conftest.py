@@ -106,20 +106,22 @@ def _start_server(config_path, services_path, config_data):
     """Start a live uvicorn server, return (base_url, shutdown_fn)."""
     config_path.write_text(json.dumps(config_data, indent=2))
 
-    import app as app_module
+    import config as config_module
 
     patches = (
-        patch.object(app_module, "CONFIG_PATH", config_path),
-        patch.object(app_module, "BLOCKED_SERVICES_PATH", services_path),
-        patch.object(app_module, "TECHNITIUM_API_TOKEN", ""),
-        patch.object(app_module, "TECHNITIUM_URL", "http://localhost:19999"),
-        patch.object(app_module, "AUTH_DISABLED", True),
+        patch.object(config_module, "CONFIG_PATH", config_path),
+        patch.object(config_module, "BLOCKED_SERVICES_PATH", services_path),
+        patch.object(config_module, "TECHNITIUM_API_TOKEN", ""),
+        patch.object(config_module, "TECHNITIUM_URL", "http://localhost:19999"),
+        patch.object(config_module, "AUTH_DISABLED", True),
     )
     for p in patches:
         p.start()
 
+    from app import app as app_instance
+
     uv_config = uvicorn.Config(
-        app=app_module.app,
+        app=app_instance,
         host="127.0.0.1",
         port=0,
         log_level="warning",

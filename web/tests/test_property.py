@@ -182,11 +182,11 @@ def _make_client(tmp_path, config_data):
     services_path.write_text(json.dumps({}))
 
     with (
-        patch("app.CONFIG_PATH", config_path),
-        patch("app.BLOCKED_SERVICES_PATH", services_path),
-        patch("app.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("app.AUTH_DISABLED", True),
+        patch("config.CONFIG_PATH", config_path),
+        patch("config.BLOCKED_SERVICES_PATH", services_path),
+        patch("config.TECHNITIUM_API_TOKEN", "test-token"),
+        patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+        patch("config.AUTH_DISABLED", True),
         respx.mock(assert_all_called=False) as mock,
     ):
         mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -208,8 +208,8 @@ class TestConfigRoundTrip:
         """Any valid config survives save -> load without data loss."""
         config_path = tmp_path / "dnsApp.config"
 
-        with patch("app.CONFIG_PATH", config_path):
-            from app import load_config, save_config
+        with patch("config.CONFIG_PATH", config_path):
+            from config import load_config, save_config
 
             save_config(config)
             loaded = load_config()
@@ -236,8 +236,8 @@ class TestConfigRoundTrip:
         """Saved config is always valid JSON."""
         config_path = tmp_path / "dnsApp.config"
 
-        with patch("app.CONFIG_PATH", config_path):
-            from app import save_config
+        with patch("config.CONFIG_PATH", config_path):
+            from config import save_config
 
             save_config(config)
 
@@ -252,7 +252,7 @@ class TestMigrationIdempotency:
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_migrate_idempotent(self, config):
         """Running migration twice produces identical config."""
-        from app import _migrate_blocklists
+        from config import _migrate_blocklists
 
         _migrate_blocklists(config)
         first = json.dumps(config, sort_keys=True)
@@ -285,7 +285,7 @@ class TestMigrationIdempotency:
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_migrate_always_produces_string_urls(self, profiles):
         """After migration, all profile blockLists entries are strings."""
-        from app import _migrate_blocklists
+        from config import _migrate_blocklists
 
         config = {
             "profiles": {name: {"blockLists": bls} for name, bls in profiles.items()},
