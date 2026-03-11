@@ -50,9 +50,7 @@ jobs:
             elif [ "$PCT" -ge 80 ]; then COLOR="green";
             elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
             else COLOR="red"; fi
-            cat > dotnet-report/coverage-badge.json << EOF
-            {"schemaVersion":1,"label":"C# coverage","message":"${PCT}%","color":"${COLOR}"}
-          EOF
+            printf '{"schemaVersion":1,"label":"C# coverage","message":"%s%%","color":"%s"}\n' "$PCT" "$COLOR" > dotnet-report/coverage-badge.json
           fi
 
       - name: Upload coverage report
@@ -95,9 +93,7 @@ jobs:
           elif [ "$PCT" -ge 80 ]; then COLOR="green";
           elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
           else COLOR="red"; fi
-          cat > coverage-badge.json << EOF
-          {"schemaVersion":1,"label":"Python coverage","message":"${PCT}%","color":"${COLOR}"}
-          EOF
+          printf '{"schemaVersion":1,"label":"Python coverage","message":"%s%%","color":"%s"}\n' "$PCT" "$COLOR" > coverage-badge.json
 
       - name: Upload coverage report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -181,9 +177,7 @@ jobs:
           elif [ "$IMPRECISE_INT" -le 5 ]; then COLOR="green";
           elif [ "$IMPRECISE_INT" -le 10 ]; then COLOR="yellowgreen";
           else COLOR="yellow"; fi
-          cat > mypy-report/mypy-badge.json << EOF
-          {"schemaVersion":1,"label":"mypy","message":"${IMPRECISE}% imprecise","color":"${COLOR}"}
-          EOF
+          printf '{"schemaVersion":1,"label":"mypy","message":"%s%% imprecise","color":"%s"}\n' "$IMPRECISE" "$COLOR" > mypy-report/mypy-badge.json
 
       - name: Upload mypy report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
