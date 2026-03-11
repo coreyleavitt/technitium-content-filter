@@ -24,31 +24,10 @@ A content filtering DNS app plugin for [Technitium DNS Server](https://technitiu
 
 ## Architecture
 
-```
-┌─────────────────────────────────────┐
-│         Technitium DNS Server       │
-│                                     │
-│  ┌───────────────────────────────┐  │
-│  │   Content Filter Plugin (C#)  │  │
-│  │                               │  │
-│  │  DNS Request ──► Filter Chain │  │
-│  │    1. Rewrites                │  │
-│  │    2. Allowlist               │  │
-│  │    3. Schedule                │  │
-│  │    4. Block (services,        │  │
-│  │       lists, custom rules)    │  │
-│  └───────────────────────────────┘  │
-│                                     │
-└─────────────────────────────────────┘
-         ▲                    ▲
-         │ DNS (53/853)       │ HTTP API
-         │                    │
-      Clients          ┌─────┴──────┐
-                        │  Web UI    │
-                        │ (Python/   │
-                        │  Starlette)│
-                        └────────────┘
-```
+The system has two components that share a config file (`dnsApp.config`):
+
+- **C# Plugin** -- Runs inside Technitium DNS Server, intercepts DNS queries, and applies filtering rules. Compiles profiles into optimized in-memory structures for O(1) domain lookups.
+- **Python Web UI** -- Starlette app that reads/writes the shared config file and triggers the plugin to reload via the Technitium API.
 
 ### Evaluation Order
 
@@ -66,24 +45,30 @@ When a DNS query arrives, the plugin evaluates in this order:
 ## Project Structure
 
 ```
-├── src/ContentFilter/       # C# DNS app plugin
-│   ├── App.cs                     # Plugin entry point (IDnsApplication)
-│   ├── Models/                    # Config and compiled profile models
-│   └── Services/                  # Domain matching, filtering, compilation
+├── src/ContentFilter/              # C# DNS app plugin
+│   ├── App.cs                      # Plugin entry point (IDnsApplication)
+│   ├── Models/                     # Config and compiled profile models
+│   └── Services/                   # FilteringService, BlockListManager,
+│                                   # ProfileCompiler, ClientResolver,
+│                                   # ScheduleEvaluator, DomainMatcher, etc.
 ├── tests/
-│   ├── ContentFilter.Tests/           # C# unit + property tests (~310)
-│   ├── ContentFilter.IntegrationTests/ # Docker-based integration tests
-│   └── ContentFilter.Benchmarks/       # Performance benchmarks
-├── web/                           # Python web management UI
-│   ├── app.py                     # Starlette application
-│   ├── templates/                 # Mako HTML templates
-│   ├── static/                    # JS + Tailwind CSS
-│   └── tests/                     # Python tests
-│       ├── test_*.py              # Unit, API, route, property tests (138)
-│       └── e2e/                   # Playwright browser tests (81)
-├── Dockerfile.build               # Plugin build (outputs ZIP)
-├── Dockerfile.test                # C# test runner
-└── Dockerfile.integration-test    # Integration test runner
+│   ├── ContentFilter.Tests/        # C# unit + property tests (~395)
+│   ├── ContentFilter.IntegrationTests/
+│   └── ContentFilter.Benchmarks/
+├── web/                            # Python web management UI
+│   ├── app.py                      # Starlette app factory
+│   ├── config.py                   # Config I/O, validation, shared state
+│   ├── filtering.py                # Pure DNS filtering logic
+│   ├── middleware.py               # Auth, CSRF, rate limiting middleware
+│   ├── routes.py                   # Page and API route handlers
+│   ├── templates/                  # Mako HTML templates
+│   ├── static/                     # Vanilla JS + Tailwind CSS
+│   └── tests/                      # Python tests
+│       ├── test_*.py               # Unit, API, property tests (~285)
+│       └── e2e/                    # Playwright browser tests (~98)
+├── Dockerfile.build                # Plugin build (outputs ZIP)
+├── Dockerfile.test                 # C# test runner
+└── Dockerfile.integration-test     # Integration test runner
 ```
 
 ## Getting Started
@@ -134,7 +119,7 @@ The web UI needs these environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `CONFIG_PATH` | Path to the plugin's `config.json` |
+| `CONFIG_PATH` | Path to the plugin's `dnsApp.config` |
 | `BLOCKED_SERVICES_PATH` | Path to `blocked-services.json` |
 | `TECHNITIUM_URL` | Technitium DNS Server URL |
 | `TECHNITIUM_API_TOKEN` | API token for config reload |
@@ -166,11 +151,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock content-filter-inte
 ```bash
 cd web
 
-# Unit, API, route, and property tests (138 tests, 100% coverage)
+# Unit, API, and property tests (~285 tests, 98% coverage)
 uv sync --extra test
 uv run pytest
 
-# E2E browser tests (81 tests)
+# E2E browser tests (~98 tests)
 uv run playwright install chromium
 uv run pytest -m e2e --no-cov
 
@@ -187,7 +172,7 @@ dotnet stryker -f stryker-config.json
 
 ## Configuration
 
-The plugin stores its configuration in a `config.json` file managed by Technitium. Here's the structure:
+The plugin stores its configuration in a `dnsApp.config` file in Technitium's app folder. Both the C# plugin and the Python web UI read/write this file. Here's the structure:
 
 ```json
 {
