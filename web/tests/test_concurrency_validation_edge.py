@@ -13,7 +13,6 @@ from starlette.testclient import TestClient
 
 from tests.conftest import read_config
 
-
 # ---------------------------------------------------------------------------
 # #59: Config read-modify-write race condition
 # ---------------------------------------------------------------------------
@@ -189,6 +188,7 @@ class TestUrlValidation:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -232,6 +232,7 @@ class TestUrlValidation:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -278,6 +279,7 @@ class TestUrlValidation:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -407,6 +409,7 @@ class TestTechnitiumApiFailures:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -441,6 +444,7 @@ class TestTechnitiumApiFailures:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             import httpx
@@ -477,6 +481,7 @@ class TestTechnitiumApiFailures:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             import httpx
@@ -513,6 +518,7 @@ class TestTechnitiumApiFailures:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -569,6 +575,7 @@ class TestLargeConfig:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -613,6 +620,7 @@ class TestLargeConfig:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
@@ -656,6 +664,7 @@ class TestLargeConfig:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(

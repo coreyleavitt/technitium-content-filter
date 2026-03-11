@@ -113,6 +113,7 @@ def _start_server(config_path, services_path, config_data):
         patch.object(app_module, "BLOCKED_SERVICES_PATH", services_path),
         patch.object(app_module, "TECHNITIUM_API_TOKEN", ""),
         patch.object(app_module, "TECHNITIUM_URL", "http://localhost:19999"),
+        patch.object(app_module, "AUTH_DISABLED", True),
     )
     for p in patches:
         p.start()

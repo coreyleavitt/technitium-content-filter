@@ -139,9 +139,14 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" id="mobileMenuBtn" class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-indigo-200 hover:bg-indigo-500 hover:text-white">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
-                    </button>
+                    <div class="flex items-center">
+                        <form method="post" action="${base_path}/logout" class="hidden md:block ml-4">
+                            <button type="submit" class="rounded-md px-3 py-1.5 text-sm text-indigo-200 hover:bg-indigo-500 hover:text-white">Logout</button>
+                        </form>
+                        <button type="button" id="mobileMenuBtn" class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-indigo-200 hover:bg-indigo-500 hover:text-white">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div id="mobileMenu" class="hidden md:hidden border-t border-indigo-500">
@@ -156,6 +161,11 @@
                         <a href="${base_path}/filters/services" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-services' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Blocked Services</a>
                         <a href="${base_path}/filters/rules" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rules' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Custom Filtering Rules</a>
                         <a href="${base_path}/filters/rewrites" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rewrites' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Rewrites</a>
+                    </div>
+                    <div class="border-t border-indigo-500 pt-1 mt-1">
+                        <form method="post" action="${base_path}/logout">
+                            <button type="submit" class="block w-full text-left rounded-md px-3 py-2 text-sm font-medium text-indigo-200 hover:bg-indigo-500 hover:text-white">Logout</button>
+                        </form>
                     </div>
                 </div>
             </div>

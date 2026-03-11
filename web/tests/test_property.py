@@ -186,6 +186,7 @@ def _make_client(tmp_path, config_data):
         patch("app.BLOCKED_SERVICES_PATH", services_path),
         patch("app.TECHNITIUM_API_TOKEN", "test-token"),
         patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+        patch("app.AUTH_DISABLED", True),
         respx.mock(assert_all_called=False) as mock,
     ):
         mock.post("http://technitium-mock:5380/api/apps/config/set").mock(

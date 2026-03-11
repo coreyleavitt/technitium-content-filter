@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
@@ -16,8 +18,9 @@ import httpx
 from mako.lookup import TemplateLookup
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -58,6 +61,22 @@ _VALID_CONFIG_KEYS = frozenset({
 _rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "300"))
 RATE_LIMIT_WINDOW = 60.0  # seconds
+
+# #103: Authentication config
+SESSION_EXPIRY = int(os.environ.get("SESSION_EXPIRY", "86400"))  # 24 hours
+AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "").lower() in ("1", "true", "yes")
+LOGIN_RATE_LIMIT = 10  # max login attempts per minute per IP
+
+
+def _get_session_secret() -> str:
+    env_secret = os.environ.get("SESSION_SECRET", "")
+    if env_secret:
+        return env_secret
+    if TECHNITIUM_API_TOKEN:
+        return hashlib.sha256(
+            f"content-filter-session:{TECHNITIUM_API_TOKEN}".encode()
+        ).hexdigest()
+    return secrets.token_hex(32)
 
 
 def _read_api_token() -> str:
@@ -351,6 +370,117 @@ class RateLimitMiddleware:
                 await response(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+
+# #103: Auth paths that don't require authentication
+_PUBLIC_PATHS = frozenset({"/login"})
+_PUBLIC_PREFIXES = ("/static/",)
+
+
+class AuthMiddleware:
+    """Require authentication for all routes except login and static files (#103)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or AUTH_DISABLED:
+            await self.app(scope, receive, send)
+            return
+
+        path: str = scope["path"]
+        if path in _PUBLIC_PATHS or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+
+        session: dict[str, Any] = scope.get("session", {})
+        user = session.get("user")
+        login_time: float = session.get("login_time", 0)
+
+        if not user or (time.time() - login_time > SESSION_EXPIRY):
+            if "session" in scope:
+                scope["session"].clear()
+            if path.startswith("/api/"):
+                resp: Response = JSONResponse(
+                    {"ok": False, "error": "Authentication required"},
+                    status_code=401,
+                )
+            else:
+                base = BASE_PATH.rstrip("/")
+                resp = RedirectResponse(url=f"{base}/login", status_code=302)
+            await resp(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)
+
+
+# --- Auth Routes ---
+
+
+async def login_page(request: Request) -> HTMLResponse:
+    if not AUTH_DISABLED and request.session.get("user"):
+        base = BASE_PATH.rstrip("/")
+        return RedirectResponse(url=f"{base}/", status_code=302)  # type: ignore[return-value]
+    return render("login.html", error="")
+
+
+async def login_submit(request: Request) -> HTMLResponse:
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", ""))
+
+    if not username or not password:
+        return render("login.html", error="Username and password are required")
+
+    # Rate limit login attempts
+    client_addr = request.scope.get("client")
+    client_ip = client_addr[0] if client_addr else "unknown"
+    login_bucket_key = f"login:{client_ip}"
+    now = time.monotonic()
+    bucket = _rate_limit_buckets[login_bucket_key]
+    cutoff = now - RATE_LIMIT_WINDOW
+    while bucket and bucket[0] < cutoff:
+        bucket.pop(0)
+    if len(bucket) >= LOGIN_RATE_LIMIT:
+        return render("login.html", error="Too many login attempts. Please wait.")
+
+    bucket.append(now)
+
+    # Validate against Technitium DNS Server
+    client = _http_client
+    if client is None:
+        client = httpx.AsyncClient(timeout=10.0)
+        should_close = True
+    else:
+        should_close = False
+    try:
+        resp = await client.get(
+            f"{TECHNITIUM_URL}/api/user/login",
+            params={"user": username, "pass": password},
+        )
+        result = resp.json()
+        if result.get("status") != "ok":
+            error_msg = result.get("errorMessage", "Invalid credentials")
+            return render("login.html", error=error_msg)
+    except httpx.HTTPError:
+        return render("login.html", error="Cannot reach DNS server. Please try again.")
+    except (json.JSONDecodeError, KeyError):
+        return render("login.html", error="Unexpected response from DNS server")
+    finally:
+        if should_close:
+            await client.aclose()
+
+    # Login successful
+    request.session["user"] = username
+    request.session["login_time"] = time.time()
+    base = BASE_PATH.rstrip("/")
+    return RedirectResponse(url=f"{base}/", status_code=302)  # type: ignore[return-value]
+
+
+async def logout(request: Request) -> RedirectResponse:
+    request.session.clear()
+    base = BASE_PATH.rstrip("/")
+    return RedirectResponse(url=f"{base}/login", status_code=302)
 
 
 # --- Page Routes ---
@@ -918,6 +1048,9 @@ async def lifespan(app_instance: Starlette) -> AsyncIterator[None]:
 
 
 routes = [
+    Route("/login", login_page, methods=["GET"]),
+    Route("/login", login_submit, methods=["POST"]),
+    Route("/logout", logout, methods=["POST"]),
     Route("/", dashboard),
     Route("/profiles", profiles_page),
     Route("/clients", clients_page),
@@ -955,6 +1088,8 @@ app = Starlette(
     lifespan=lifespan,
     middleware=[
         Middleware(RequestSizeLimitMiddleware),
+        Middleware(SessionMiddleware, secret_key=_get_session_secret(), max_age=SESSION_EXPIRY),
+        Middleware(AuthMiddleware),
         Middleware(CSRFMiddleware),
         Middleware(RateLimitMiddleware),
     ],

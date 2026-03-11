@@ -84,6 +84,11 @@ async function _apiCallInner(method, url, data) {
         showToast('Network error: ' + err.message, 'error');
         throw err;
     }
+    // Redirect to login on auth failure
+    if (resp.status === 401) {
+        window.location.href = BASE_PATH + '/login';
+        throw new Error('Session expired');
+    }
     let result;
     try {
         result = await resp.json();

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login - Content Filter</title>
+    <link rel="stylesheet" href="${base_path}/static/css/styles.css">
+    <script>
+    (function() {
+        const pref = localStorage.getItem('theme');
+        if (pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    })();
+    </script>
+    <style>
+    .dark body { background-color: #1a1a1a !important; color: #dcdcdc !important; }
+    .dark .bg-white { background-color: #2c2c2e !important; }
+    .dark .text-gray-900 { color: #f5f5f7 !important; }
+    .dark .text-gray-500 { color: #a0a0a0 !important; }
+    .dark .text-gray-400 { color: #888888 !important; }
+    .dark input[type="text"], .dark input[type="password"] {
+        background-color: #3a3a3c !important;
+        border-color: #4a4a4c !important;
+        color: #f5f5f7 !important;
+    }
+    .dark input::placeholder { color: #888888 !important; }
+    .dark .border-gray-300 { border-color: #4a4a4c !important; }
+    .dark .shadow { --tw-shadow-color: rgba(0,0,0,0.4) !important; }
+    </style>
+</head>
+<body class="h-full bg-gray-50">
+    <div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div class="sm:mx-auto sm:w-full sm:max-w-md">
+            <h1 class="mt-6 text-center text-2xl font-bold text-gray-900">Content Filter</h1>
+            <p class="mt-2 text-center text-sm text-gray-500">Sign in with your Technitium DNS Server credentials</p>
+        </div>
+        <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+            <div class="bg-white px-6 py-8 shadow rounded-lg sm:px-10">
+                % if error:
+                <div class="mb-4 rounded-md bg-red-50 p-3">
+                    <p class="text-sm text-red-800">${error}</p>
+                </div>
+                % endif
+                <form method="post" action="${base_path}/login" class="space-y-5">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" name="username" id="username" required autocomplete="username" autofocus
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" name="password" id="password" required autocomplete="current-password"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <button type="submit"
+                        class="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                        Sign in
+                    </button>
+                </form>
+            </div>
+            <p class="mt-4 text-center text-xs text-gray-400">Authentication is handled by your Technitium DNS Server</p>
+        </div>
+    </div>
+</body>
+</html>

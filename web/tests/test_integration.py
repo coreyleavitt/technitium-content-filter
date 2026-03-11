@@ -129,6 +129,7 @@ class TestTechnitiumReload:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", "test-token"),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             # Technitium returns 500
@@ -166,6 +167,7 @@ class TestTechnitiumReload:
             patch("app.BLOCKED_SERVICES_PATH", services_path),
             patch("app.TECHNITIUM_API_TOKEN", ""),
             patch("app.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("app.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False),
         ):
             from starlette.testclient import TestClient
