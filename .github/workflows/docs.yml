@@ -57,25 +57,76 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: docs-site
-          path: _site
+          path: deploy/latest/
 
-      # Merge coverage badges from CI run if available
-      - name: Download CI badges
-        if: github.event_name != 'workflow_dispatch'
+      # Download coverage reports from CI run
+      - name: Download C# coverage report
+        if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v8
         with:
+          name: dotnet-coverage-report
+          path: deploy/reports/dotnet-coverage/
+          github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: badges
         continue-on-error: true
 
-      - name: Merge badges into site
+      - name: Download Python coverage report
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v8
+        with:
+          name: python-coverage-report
+          path: deploy/reports/python-coverage/
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+        continue-on-error: true
+
+      - name: Download mypy report
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v8
+        with:
+          name: mypy-report
+          path: deploy/reports/mypy/
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+        continue-on-error: true
+
+      - name: Create reports index
         run: |
-          if [ -d badges ]; then
-            find badges -name "*.json" -exec cp {} _site/ \;
-          fi
+          mkdir -p deploy/reports
+          cat > deploy/reports/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Content Filter Reports</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+              h1 { color: #333; }
+              a { display: block; padding: 15px; margin: 10px 0; background: #f5f5f5; border-radius: 8px; text-decoration: none; color: #0066cc; }
+              a:hover { background: #e8e8e8; }
+            </style>
+          </head>
+          <body>
+            <h1>Content Filter Reports</h1>
+            <a href="dotnet-coverage/htmlcov/">C# Test Coverage Report</a>
+            <a href="python-coverage/htmlcov/">Python Test Coverage Report</a>
+            <a href="mypy/">Type Check Report (mypy)</a>
+          </body>
+          </html>
+          EOF
+
+      - name: Create root redirect
+        run: |
+          cat > deploy/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><meta http-equiv="refresh" content="0; url=latest/"></head>
+          <body><a href="latest/">Redirect to latest docs</a></body>
+          </html>
+          EOF
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
+        with:
+          path: deploy/
       - id: deployment
         uses: actions/deploy-pages@v4

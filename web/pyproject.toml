@@ -40,6 +40,7 @@ markers = [
 
 [dependency-groups]
 dev = [
+    "lxml>=6.0.2",
     "mypy>=1.19.1",
     "ruff>=0.1.0",
 ]

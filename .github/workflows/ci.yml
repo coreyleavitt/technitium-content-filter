@@ -29,28 +29,36 @@ jobs:
               --settings /src/app/tests/coverlet.runsettings \
               --results-directory /coverage
 
-      - name: Extract coverage percentage
+      - name: Generate HTML coverage report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           COV_FILE=$(find coverage -name "coverage.cobertura.xml" | head -1)
           if [ -n "$COV_FILE" ]; then
+            dotnet tool install -g dotnet-reportgenerator-globaltool
+            reportgenerator \
+              -reports:"$COV_FILE" \
+              -targetdir:coverage/htmlcov \
+              -reporttypes:Html
+
             LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' "$COV_FILE" | head -1)
             PCT=$(echo "$LINE_RATE * 100" | bc | xargs printf "%.0f")
             if [ "$PCT" -ge 90 ]; then COLOR="brightgreen";
             elif [ "$PCT" -ge 80 ]; then COLOR="green";
             elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
             else COLOR="red"; fi
-            cat > dotnet-coverage-badge.json <<EOF
-          {"schemaVersion":1,"label":"C# coverage","message":"${PCT}%","color":"${COLOR}"}
+            cat > coverage/coverage-badge.json << EOF
+            {"schemaVersion":1,"label":"C# coverage","message":"${PCT}%","color":"${COLOR}"}
           EOF
           fi
 
-      - name: Upload coverage badge
+      - name: Upload coverage report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
-          name: dotnet-coverage-badge
-          path: dotnet-coverage-badge.json
+          name: dotnet-coverage-report
+          path: |
+            coverage/htmlcov/
+            coverage/coverage-badge.json
           if-no-files-found: ignore
 
   python-test:
@@ -72,7 +80,7 @@ jobs:
         run: |
           uv run pytest tests/ --cov-report=html:htmlcov --cov-report=term-missing
 
-      - name: Extract coverage percentage
+      - name: Generate coverage badge JSON
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           PCT=$(uv run python -c "
@@ -85,16 +93,18 @@ jobs:
           elif [ "$PCT" -ge 80 ]; then COLOR="green";
           elif [ "$PCT" -ge 70 ]; then COLOR="yellowgreen";
           else COLOR="red"; fi
-          cat > python-coverage-badge.json <<EOF
+          cat > coverage-badge.json << EOF
           {"schemaVersion":1,"label":"Python coverage","message":"${PCT}%","color":"${COLOR}"}
           EOF
 
-      - name: Upload coverage badge
+      - name: Upload coverage report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
-          name: python-coverage-badge
-          path: web/python-coverage-badge.json
+          name: python-coverage-report
+          path: |
+            web/htmlcov/
+            web/coverage-badge.json
           if-no-files-found: ignore
 
   python-e2e:
@@ -151,5 +161,32 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: mypy
-        run: uv run mypy --strict app.py
+      - name: Run mypy with HTML report
+        run: uv run mypy --strict --html-report mypy-report app.py
+
+      - name: Generate mypy badge JSON
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          IMPRECISE=$(python3 -c "
+          import re
+          with open('mypy-report/index.html') as f:
+              content = f.read()
+          match = re.search(r'(\d+\.?\d*)% imprecise', content)
+          print(match.group(1) if match else '0')
+          ")
+          IMPRECISE_INT=$(echo "$IMPRECISE" | cut -d. -f1)
+          if [ "$IMPRECISE_INT" -le 1 ]; then COLOR="brightgreen";
+          elif [ "$IMPRECISE_INT" -le 5 ]; then COLOR="green";
+          elif [ "$IMPRECISE_INT" -le 10 ]; then COLOR="yellowgreen";
+          else COLOR="yellow"; fi
+          cat > mypy-report/mypy-badge.json << EOF
+          {"schemaVersion":1,"label":"mypy","message":"${IMPRECISE}% imprecise","color":"${COLOR}"}
+          EOF
+
+      - name: Upload mypy report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mypy-report
+          path: web/mypy-report/
+          if-no-files-found: ignore

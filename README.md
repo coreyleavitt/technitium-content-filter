@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/ci.yml/badge.svg)](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/codeql.yml/badge.svg)](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/codeql.yml)
-[![C# coverage](https://img.shields.io/endpoint?url=https://coreyleavitt.github.io/technitium-content-filter/dotnet-coverage-badge.json)](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/ci.yml)
-[![Python coverage](https://img.shields.io/endpoint?url=https://coreyleavitt.github.io/technitium-content-filter/python-coverage-badge.json)](https://github.com/coreyleavitt/technitium-content-filter/actions/workflows/ci.yml)
+[![C# coverage](https://img.shields.io/endpoint?url=https://coreyleavitt.github.io/technitium-content-filter/reports/dotnet-coverage/coverage-badge.json)](https://coreyleavitt.github.io/technitium-content-filter/reports/dotnet-coverage/htmlcov/)
+[![Python coverage](https://img.shields.io/endpoint?url=https://coreyleavitt.github.io/technitium-content-filter/reports/python-coverage/coverage-badge.json)](https://coreyleavitt.github.io/technitium-content-filter/reports/python-coverage/htmlcov/)
+[![mypy](https://img.shields.io/endpoint?url=https://coreyleavitt.github.io/technitium-content-filter/reports/mypy/mypy-badge.json)](https://coreyleavitt.github.io/technitium-content-filter/reports/mypy/)
 [![Docs](https://img.shields.io/badge/Docs-coreyleavitt.github.io-blue.svg)](https://coreyleavitt.github.io/technitium-content-filter/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
