@@ -36,7 +36,7 @@ class TestRulesProfilePicker:
         page.goto(f"{live_server}/filters/rules#kids")
         page.locator("#profilePicker").wait_for()
         lines = page.locator("#rulesText").input_value().splitlines()
-        assert "blocked.com" in lines
+        assert any(line == "blocked.com" for line in lines)
 
         page.locator("#profilePicker").select_option("adults")
         # Adults has empty rules
