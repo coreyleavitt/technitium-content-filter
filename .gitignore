@@ -34,3 +34,6 @@ StrykerOutput/
 
 # MkDocs build output
 site/
+
+# Compiled Tailwind CSS (build artifact)
+web/technitium_content_filter/static/css/styles.css

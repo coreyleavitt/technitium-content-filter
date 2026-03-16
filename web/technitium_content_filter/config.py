@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
+import hmac
 import json
 import logging
 import os
@@ -56,7 +56,9 @@ def _get_session_secret() -> str:
     if env_secret:
         return env_secret
     if TECHNITIUM_API_TOKEN:
-        return hashlib.sha256(f"content-filter-session:{TECHNITIUM_API_TOKEN}".encode()).hexdigest()
+        return hmac.new(
+            TECHNITIUM_API_TOKEN.encode(), b"content-filter-session", "sha256"
+        ).hexdigest()
     return secrets.token_hex(32)
 
 

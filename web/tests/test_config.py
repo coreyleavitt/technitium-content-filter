@@ -9,8 +9,8 @@ import pytest
 @pytest.mark.unit
 class TestLoadConfig:
     def test_no_file_returns_defaults(self, tmp_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             config = load_config()
 
@@ -23,8 +23,8 @@ class TestLoadConfig:
 
     def test_loads_from_file(self, tmp_config, sample_config):
         tmp_config.write_text(json.dumps(sample_config))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             config = load_config()
 
@@ -34,8 +34,8 @@ class TestLoadConfig:
 
     def test_missing_fields_use_defaults(self, tmp_config):
         tmp_config.write_text(json.dumps({"enableBlocking": False, "_blockListsSeeded": True}))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             config = load_config()
 
@@ -43,8 +43,8 @@ class TestLoadConfig:
 
     def test_corrupt_json_raises(self, tmp_config):
         tmp_config.write_text("not valid json{{{")
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises(json.JSONDecodeError):
                 load_config()
@@ -53,8 +53,8 @@ class TestLoadConfig:
 @pytest.mark.unit
 class TestSaveConfig:
     def test_writes_file(self, tmp_config, sample_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             save_config(sample_config)
 
@@ -63,8 +63,8 @@ class TestSaveConfig:
 
     def test_atomic_write_no_partial(self, tmp_config):
         """Temp file should not remain after successful save."""
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             save_config({"test": True})
 
@@ -74,8 +74,8 @@ class TestSaveConfig:
 
     def test_overwrites_existing(self, tmp_config, sample_config):
         tmp_config.write_text(json.dumps(sample_config))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             save_config({"enableBlocking": False})
 
@@ -83,8 +83,8 @@ class TestSaveConfig:
         assert saved == {"enableBlocking": False}
 
     def test_indented_output(self, tmp_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             save_config({"key": "value", "nested": {"a": 1}})
 
@@ -96,7 +96,7 @@ class TestSaveConfig:
 @pytest.mark.unit
 class TestMigrateBlocklists:
     def test_objects_to_global_urls(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {
@@ -121,7 +121,7 @@ class TestMigrateBlocklists:
         assert config["profiles"]["kids"]["blockLists"] == ["https://list1.txt"]
 
     def test_deduplicates_across_profiles(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {
@@ -135,7 +135,7 @@ class TestMigrateBlocklists:
         assert len(config["blockLists"]) == 1
 
     def test_string_urls_not_migrated(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {"kids": {"blockLists": ["https://already-migrated.txt"]}},
@@ -147,7 +147,7 @@ class TestMigrateBlocklists:
         assert config["profiles"]["kids"]["blockLists"] == ["https://already-migrated.txt"]
 
     def test_idempotent(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {"kids": {"blockLists": [{"url": "https://list.txt"}]}},
@@ -162,7 +162,7 @@ class TestMigrateBlocklists:
         assert first == second
 
     def test_empty_url_skipped(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {"kids": {"blockLists": [{"url": ""}, {"url": "https://good.txt"}]}},
@@ -173,7 +173,7 @@ class TestMigrateBlocklists:
         assert config["profiles"]["kids"]["blockLists"] == ["https://good.txt"]
 
     def test_no_profiles_no_error(self):
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {"profiles": {}, "blockLists": []}
         changed = _migrate_blocklists(config)
@@ -197,8 +197,8 @@ class TestSeedDefaultBlocklists:
                 ]
             )
         )
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import _seed_default_blocklists
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import _seed_default_blocklists
 
             config = {"blockLists": []}
             changed = _seed_default_blocklists(config)
@@ -208,8 +208,8 @@ class TestSeedDefaultBlocklists:
         assert config["_blockListsSeeded"] is True
 
     def test_skips_when_already_seeded(self, tmp_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import _seed_default_blocklists
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import _seed_default_blocklists
 
             config = {"blockLists": [], "_blockListsSeeded": True}
             changed = _seed_default_blocklists(config)
@@ -226,8 +226,8 @@ class TestSeedDefaultBlocklists:
                 ]
             )
         )
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import _seed_default_blocklists
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import _seed_default_blocklists
 
             config = {
                 "blockLists": [{"url": "https://existing.txt", "name": "Old Name"}],
@@ -239,8 +239,8 @@ class TestSeedDefaultBlocklists:
         assert config["blockLists"][0]["name"] == "Old Name"
 
     def test_no_defaults_file_returns_false(self, tmp_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import _seed_default_blocklists
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import _seed_default_blocklists
 
             config = {"blockLists": []}
             changed = _seed_default_blocklists(config)

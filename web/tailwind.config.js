@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./templates/**/*.html",
-    "./static/js/**/*.js",
+    "./technitium_content_filter/templates/**/*.html",
+    "./technitium_content_filter/static/js/**/*.js",
   ],
   darkMode: "class",
   theme: {

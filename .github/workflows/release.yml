@@ -25,6 +25,9 @@ on:
 
 permissions:
   contents: write
+  packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   prepare-version:
@@ -59,11 +62,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
 
-      - name: Update version in .csproj
+      - name: Update version in .csproj and pyproject.toml
         if: inputs.bump != 'no'
         run: |
           sed -i "s|<Version>.*</Version>|<Version>${{ steps.version.outputs.version }}</Version>|" \
             src/ContentFilter/ContentFilter.csproj
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' \
+            web/pyproject.toml
 
       - name: Commit version bump
         id: commit
@@ -72,11 +77,18 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const content = fs.readFileSync('src/ContentFilter/ContentFilter.csproj', 'utf8');
-            const blob = await github.rest.git.createBlob({
+            const csprojContent = fs.readFileSync('src/ContentFilter/ContentFilter.csproj', 'utf8');
+            const csprojBlob = await github.rest.git.createBlob({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              content: content,
+              content: csprojContent,
+              encoding: 'utf-8'
+            });
+            const pyprojectContent = fs.readFileSync('web/pyproject.toml', 'utf8');
+            const pyprojectBlob = await github.rest.git.createBlob({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              content: pyprojectContent,
               encoding: 'utf-8'
             });
             const baseCommit = await github.rest.git.getCommit({
@@ -88,12 +100,20 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               base_tree: baseCommit.data.tree.sha,
-              tree: [{
-                path: 'src/ContentFilter/ContentFilter.csproj',
-                mode: '100644',
-                type: 'blob',
-                sha: blob.data.sha
-              }]
+              tree: [
+                {
+                  path: 'src/ContentFilter/ContentFilter.csproj',
+                  mode: '100644',
+                  type: 'blob',
+                  sha: csprojBlob.data.sha
+                },
+                {
+                  path: 'web/pyproject.toml',
+                  mode: '100644',
+                  type: 'blob',
+                  sha: pyprojectBlob.data.sha
+                }
+              ]
             });
             const commit = await github.rest.git.createCommit({
               owner: context.repo.owner,
@@ -114,7 +134,7 @@ jobs:
         if: inputs.bump == 'no'
         run: echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-  build:
+  build-plugin:
     name: Build Plugin
     needs: prepare-version
     runs-on: ubuntu-latest
@@ -138,9 +158,85 @@ jobs:
           name: plugin-zip
           path: dist/*.zip
 
+  build-python:
+    name: Build Python Package
+    needs: prepare-version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build Tailwind CSS
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          ./tailwindcss-linux-x64 \
+            -i technitium_content_filter/static/css/input.css \
+            -o technitium_content_filter/static/css/styles.css \
+            --minify
+          rm tailwindcss-linux-x64
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Upload Python dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: web/dist/
+
+  build-docker:
+    name: Build Docker Image
+    needs: prepare-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/technitium-content-filter-web
+          tags: |
+            type=raw,value=${{ needs.prepare-version.outputs.version }}
+            type=raw,value=latest,enable=${{ !contains(needs.prepare-version.outputs.version, '-') }}
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attest Docker image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/technitium-content-filter-web
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
   test:
     name: Verify Build
-    needs: [prepare-version, build]
+    needs: [prepare-version, build-plugin]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -164,7 +260,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [prepare-version, build, test]
+    needs: [prepare-version, build-plugin, build-python, build-docker, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -176,6 +272,22 @@ jobs:
         with:
           name: plugin-zip
           path: dist
+
+      - name: Download Python dist
+        uses: actions/download-artifact@v8
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Attest plugin ZIP
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/ContentFilter-*.zip
+
+      - name: Attest Python packages
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/technitium_content_filter-*
 
       - name: Create GitHub Release
         env:
@@ -189,7 +301,26 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
 
-          gh release create "$TAG" dist/*.zip \
+          gh release create "$TAG" dist/* \
             --title "$TAG" \
             --generate-notes \
             $PRERELEASE_FLAG
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: create-release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download Python dist
+        uses: actions/download-artifact@v8
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true

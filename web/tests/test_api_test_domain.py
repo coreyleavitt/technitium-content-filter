@@ -536,7 +536,7 @@ class TestTestDomainScheduleInactive:
 
         # Mock time to Monday 22:00 UTC (outside 08:00-09:00)
         fake_now = datetime(2026, 3, 9, 22, 0, tzinfo=ZoneInfo("UTC"))  # Monday
-        with patch("filtering.datetime") as mock_dt:
+        with patch("technitium_content_filter.filtering.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             resp = client.post("/api/test-domain", json={"domain": "blocked.com"})

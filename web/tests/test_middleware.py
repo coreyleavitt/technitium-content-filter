@@ -48,7 +48,7 @@ class TestRequestSizeLimitMiddleware:
 @pytest.mark.api
 class TestRateLimitMiddleware:
     def test_rate_limit_exceeded(self, client):
-        import middleware
+        from technitium_content_filter import middleware
 
         # TestClient uses "testclient" as client IP
         bucket_key = "testclient"
@@ -64,7 +64,7 @@ class TestRateLimitMiddleware:
         assert resp.status_code == 200
 
     def test_old_entries_expire(self, client):
-        import middleware
+        from technitium_content_filter import middleware
 
         bucket_key = "testclient"
         old_time = time.monotonic() - middleware.RATE_LIMIT_WINDOW - 10

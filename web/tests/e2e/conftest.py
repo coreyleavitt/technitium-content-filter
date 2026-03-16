@@ -106,7 +106,7 @@ def _start_server(config_path, services_path, config_data):
     """Start a live uvicorn server, return (base_url, shutdown_fn)."""
     config_path.write_text(json.dumps(config_data, indent=2))
 
-    import config as config_module
+    from technitium_content_filter import config as config_module
 
     patches = (
         patch.object(config_module, "CONFIG_PATH", config_path),
@@ -118,7 +118,7 @@ def _start_server(config_path, services_path, config_data):
     for p in patches:
         p.start()
 
-    from app import app as app_instance
+    from technitium_content_filter.app import app as app_instance
 
     uv_config = uvicorn.Config(
         app=app_instance,

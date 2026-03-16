@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-import config
+from . import config
 
 # #54: Simple rate limiter state
 _rate_limit_buckets: dict[str, list[float]] = defaultdict(list)

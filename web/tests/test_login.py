@@ -11,8 +11,8 @@ from httpx import Response
 @pytest.mark.api
 class TestLoginRateLimit:
     def test_login_rate_limited(self, client_with_auth):
-        import config as config_module
-        import middleware
+        from technitium_content_filter import config as config_module
+        from technitium_content_filter import middleware
 
         # TestClient uses "testclient" as client IP
         now = time.monotonic()

@@ -25,8 +25,8 @@ class TestConcurrentConfigWrites:
     def test_concurrent_saves_no_data_loss(self, tmp_config, sample_config):
         """Multiple sequential saves don't corrupt the config file."""
         tmp_config.write_text(json.dumps(sample_config, indent=2))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config, save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config, save_config
 
             # Simulate multiple rapid saves with different profiles
             for i in range(10):
@@ -50,8 +50,8 @@ class TestConcurrentConfigWrites:
     def test_save_is_atomic_no_partial_writes(self, tmp_config, sample_config):
         """After save, config is always valid JSON (no partial writes)."""
         tmp_config.write_text(json.dumps(sample_config, indent=2))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             for i in range(20):
                 save_config({**sample_config, "counter": i})
@@ -62,8 +62,8 @@ class TestConcurrentConfigWrites:
     def test_last_writer_wins(self, tmp_config, sample_config):
         """When two writes happen sequentially, the last one wins."""
         tmp_config.write_text(json.dumps(sample_config, indent=2))
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             save_config({**sample_config, "enableBlocking": True})
             save_config({**sample_config, "enableBlocking": False})
@@ -84,8 +84,8 @@ class TestMalformedJsonConfig:
     def test_truncated_json_raises(self, tmp_config):
         """Truncated JSON should raise JSONDecodeError."""
         tmp_config.write_text('{"enableBlocking": true, "profiles":')
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises(json.JSONDecodeError):
                 load_config()
@@ -93,8 +93,8 @@ class TestMalformedJsonConfig:
     def test_syntax_error_json_raises(self, tmp_config):
         """JSON with syntax errors should raise JSONDecodeError."""
         tmp_config.write_text("{enableBlocking: true}")
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises(json.JSONDecodeError):
                 load_config()
@@ -102,8 +102,8 @@ class TestMalformedJsonConfig:
     def test_empty_file_raises(self, tmp_config):
         """Empty file should raise JSONDecodeError."""
         tmp_config.write_text("")
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises(json.JSONDecodeError):
                 load_config()
@@ -111,8 +111,8 @@ class TestMalformedJsonConfig:
     def test_null_json_raises(self, tmp_config):
         """JSON 'null' should raise (not a dict)."""
         tmp_config.write_text("null")
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises((json.JSONDecodeError, TypeError, AttributeError)):
                 load_config()
@@ -120,8 +120,8 @@ class TestMalformedJsonConfig:
     def test_json_array_raises(self, tmp_config):
         """JSON array should raise (not a dict)."""
         tmp_config.write_text("[1, 2, 3]")
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import load_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import load_config
 
             with pytest.raises((TypeError, AttributeError)):
                 load_config()
@@ -184,17 +184,17 @@ class TestUrlValidation:
         config_path.write_text(json.dumps(base_config, indent=2))
 
         with (
-            patch("config.CONFIG_PATH", config_path),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", config_path),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -228,17 +228,17 @@ class TestUrlValidation:
         config_path.write_text(json.dumps(base_config, indent=2))
 
         with (
-            patch("config.CONFIG_PATH", config_path),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", config_path),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -275,17 +275,17 @@ class TestUrlValidation:
         config_path.write_text(json.dumps(base_config, indent=2))
 
         with (
-            patch("config.CONFIG_PATH", config_path),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", config_path),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -405,17 +405,17 @@ class TestTechnitiumApiFailures:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(500, text="Internal Server Error")
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -440,11 +440,11 @@ class TestTechnitiumApiFailures:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             import httpx
@@ -452,7 +452,7 @@ class TestTechnitiumApiFailures:
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 side_effect=httpx.ReadTimeout("Connection timed out")
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -477,11 +477,11 @@ class TestTechnitiumApiFailures:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             import httpx
@@ -489,7 +489,7 @@ class TestTechnitiumApiFailures:
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 side_effect=httpx.ConnectError("Connection refused")
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             resp = c.post(
@@ -514,17 +514,17 @@ class TestTechnitiumApiFailures:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(500, text="Error")
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
             # Use api/config POST which returns reloaded status
@@ -571,17 +571,17 @@ class TestLargeConfig:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
 
@@ -616,17 +616,17 @@ class TestLargeConfig:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
 
@@ -660,17 +660,17 @@ class TestLargeConfig:
         services_path = tmp_config.parent / "blocked-services.json"
 
         with (
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", True),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False) as mock,
         ):
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(200, json={"status": "ok"})
             )
-            from app import app
+            from technitium_content_filter.app import app
 
             c = TestClient(app, raise_server_exceptions=True)
 

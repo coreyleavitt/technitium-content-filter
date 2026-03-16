@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 @pytest.fixture(autouse=True)
 def _clear_rate_limit():
     """Clear rate limiter state between tests to prevent cross-test interference."""
-    import middleware
+    from technitium_content_filter import middleware
 
     middleware._rate_limit_buckets.clear()
     yield
@@ -114,11 +114,11 @@ def make_client(tmp_config):
             tmp_config.write_text(json.dumps(config_data, indent=2))
         services_path = tmp_config.parent / "blocked-services.json"
         patches = [
-            patch("config.CONFIG_PATH", tmp_config),
-            patch("config.BLOCKED_SERVICES_PATH", services_path),
-            patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-            patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-            patch("config.AUTH_DISABLED", auth_disabled),
+            patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
+            patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+            patch("technitium_content_filter.config.AUTH_DISABLED", auth_disabled),
         ]
         for p in patches:
             p.start()
@@ -129,7 +129,7 @@ def make_client(tmp_config):
             return_value=Response(200, json={"status": "ok"})
         )
         _mocks.append(mock)
-        from app import app
+        from technitium_content_filter.app import app
 
         return TestClient(app, raise_server_exceptions=raise_exceptions)
 

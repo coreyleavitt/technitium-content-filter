@@ -761,70 +761,6 @@ wheels = [
 ]
 
 [[package]]
-name = "parental-controls-web"
-version = "1.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "hypercorn" },
-    { name = "itsdangerous" },
-    { name = "mako" },
-    { name = "python-multipart" },
-    { name = "starlette" },
-]
-
-[package.optional-dependencies]
-test = [
-    { name = "hypothesis" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-playwright" },
-    { name = "respx" },
-    { name = "uvicorn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "lxml" },
-    { name = "mypy" },
-    { name = "ruff" },
-]
-docs = [
-    { name = "mkdocs-material" },
-    { name = "pymdown-extensions" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.28,<1.0" },
-    { name = "hypercorn", specifier = ">=0.17,<1.0" },
-    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.100,<7.0" },
-    { name = "itsdangerous", specifier = ">=2.1,<3.0" },
-    { name = "mako", specifier = ">=1.3,<2.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0,<10.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.24,<2.0" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0,<8.0" },
-    { name = "pytest-playwright", marker = "extra == 'test'", specifier = ">=0.6,<1.0" },
-    { name = "python-multipart", specifier = ">=0.0.17" },
-    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22,<1.0" },
-    { name = "starlette", specifier = ">=0.41,<1.0" },
-    { name = "uvicorn", marker = "extra == 'test'", specifier = ">=0.30,<1.0" },
-]
-provides-extras = ["test"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "lxml", specifier = ">=6.0.2" },
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "ruff", specifier = ">=0.1.0" },
-]
-docs = [
-    { name = "mkdocs-material", specifier = ">=9.0,<10.0" },
-    { name = "pymdown-extensions", specifier = ">=10.0,<11.0" },
-]
-
-[[package]]
 name = "pathspec"
 version = "1.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1155,6 +1091,70 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/0d/13d1d239a25cbfb19e740db83143e95c772a1fe10202dda4b76792b114dd/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74", size = 74272, upload-time = "2026-01-18T13:34:09.188Z" },
+]
+
+[[package]]
+name = "technitium-content-filter"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx" },
+    { name = "hypercorn" },
+    { name = "itsdangerous" },
+    { name = "mako" },
+    { name = "python-multipart" },
+    { name = "starlette" },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "hypothesis" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-playwright" },
+    { name = "respx" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "lxml" },
+    { name = "mypy" },
+    { name = "ruff" },
+]
+docs = [
+    { name = "mkdocs-material" },
+    { name = "pymdown-extensions" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1.0" },
+    { name = "hypercorn", specifier = ">=0.17,<1.0" },
+    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.100,<7.0" },
+    { name = "itsdangerous", specifier = ">=2.1,<3.0" },
+    { name = "mako", specifier = ">=1.3,<2.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0,<10.0" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.24,<2.0" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0,<8.0" },
+    { name = "pytest-playwright", marker = "extra == 'test'", specifier = ">=0.6,<1.0" },
+    { name = "python-multipart", specifier = ">=0.0.17" },
+    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22,<1.0" },
+    { name = "starlette", specifier = ">=0.41,<1.0" },
+    { name = "uvicorn", marker = "extra == 'test'", specifier = ">=0.30,<1.0" },
+]
+provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "lxml", specifier = ">=6.0.2" },
+    { name = "mypy", specifier = ">=1.19.1" },
+    { name = "ruff", specifier = ">=0.1.0" },
+]
+docs = [
+    { name = "mkdocs-material", specifier = ">=9.0,<10.0" },
+    { name = "pymdown-extensions", specifier = ">=10.0,<11.0" },
 ]
 
 [[package]]

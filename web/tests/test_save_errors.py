@@ -10,7 +10,8 @@ class TestSaveConfigOSError:
     """Every API endpoint that calls save_config should return 500 on OSError."""
 
     def _make_save_fail(self):
-        return patch("config.save_config", side_effect=OSError("disk full"))
+        target = "technitium_content_filter.config.save_config"
+        return patch(target, side_effect=OSError("disk full"))
 
     def test_config_set_save_error(self, client):
         with self._make_save_fail():
@@ -129,8 +130,8 @@ class TestSaveConfigAtomicCleanup:
     """Test that save_config cleans up temp file on failure."""
 
     def test_temp_file_cleaned_on_write_failure(self, tmp_config):
-        with patch("config.CONFIG_PATH", tmp_config):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", tmp_config):
+            from technitium_content_filter.config import save_config
 
             tmp_file = tmp_config.with_suffix(".tmp")
             # Make rename fail after write succeeds

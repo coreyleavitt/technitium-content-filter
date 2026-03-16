@@ -11,18 +11,18 @@ class TestGetSessionSecret:
     def test_returns_env_secret_when_set(self):
         with (
             patch.dict("os.environ", {"SESSION_SECRET": "mysecret"}),
-            patch("config.TECHNITIUM_API_TOKEN", "token"),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "token"),
         ):
-            from config import _get_session_secret
+            from technitium_content_filter.config import _get_session_secret
 
             assert _get_session_secret() == "mysecret"
 
     def test_derives_from_api_token(self):
         with (
             patch.dict("os.environ", {"SESSION_SECRET": ""}),
-            patch("config.TECHNITIUM_API_TOKEN", "my-api-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "my-api-token"),
         ):
-            from config import _get_session_secret
+            from technitium_content_filter.config import _get_session_secret
 
             result = _get_session_secret()
             assert len(result) == 64  # sha256 hex digest
@@ -30,9 +30,9 @@ class TestGetSessionSecret:
     def test_generates_random_when_no_token(self):
         with (
             patch.dict("os.environ", {"SESSION_SECRET": ""}),
-            patch("config.TECHNITIUM_API_TOKEN", ""),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", ""),
         ):
-            from config import _get_session_secret
+            from technitium_content_filter.config import _get_session_secret
 
             result = _get_session_secret()
             assert len(result) == 64  # secrets.token_hex(32)
@@ -41,13 +41,13 @@ class TestGetSessionSecret:
 @pytest.mark.unit
 class TestValidateJsonObjList:
     def test_raises_on_non_list(self):
-        from config import _validate_json_obj_list
+        from technitium_content_filter.config import _validate_json_obj_list
 
         with pytest.raises(TypeError, match="Expected list"):
             _validate_json_obj_list("not a list")
 
     def test_filters_non_dict_items(self):
-        from config import _validate_json_obj_list
+        from technitium_content_filter.config import _validate_json_obj_list
 
         result = _validate_json_obj_list([{"a": 1}, "string", 42, {"b": 2}])
         assert result == [{"a": 1}, {"b": 2}]

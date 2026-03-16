@@ -46,7 +46,10 @@ services:
 
   # Content Filter Web UI
   content-filter-web:
-    build: ./web
+    image: ghcr.io/coreyleavitt/technitium-content-filter-web:latest
+    # To build locally instead of using the published image, comment out
+    # the 'image' line above and uncomment the line below:
+    # build: ./web
     ports:
       - "8000:8000"
     environment:

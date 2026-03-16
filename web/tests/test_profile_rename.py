@@ -91,7 +91,8 @@ class TestProfileRename:
     def test_rename_save_error(self, client):
         from unittest.mock import patch
 
-        with patch("config.save_config", side_effect=OSError("disk full")):
+        save_patch = "technitium_content_filter.config.save_config"
+        with patch(save_patch, side_effect=OSError("disk full")):
             resp = client.post(
                 "/api/profiles/rename",
                 json={"old_name": "kids", "new_name": "children"},

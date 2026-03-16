@@ -161,7 +161,7 @@ class TestSessionExpiry:
             )
 
         # Expire the session by setting SESSION_EXPIRY to 0
-        with patch("config.SESSION_EXPIRY", 0):
+        with patch("technitium_content_filter.config.SESSION_EXPIRY", 0):
             resp = client_with_auth.get("/", follow_redirects=False)
             assert resp.status_code == 302
             assert "/login" in resp.headers["location"]

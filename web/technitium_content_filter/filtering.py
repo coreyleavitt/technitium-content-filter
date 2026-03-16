@@ -4,7 +4,7 @@ import ipaddress
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from config import JsonObj, _as_list, _as_str
+from .config import JsonObj, _as_list, _as_str
 
 _DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 

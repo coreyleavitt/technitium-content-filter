@@ -12,10 +12,8 @@ from mako.lookup import TemplateLookup
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-import config
-import filtering
-import middleware
-from config import (
+from . import config, filtering, middleware
+from .config import (
     _VALID_CONFIG_KEYS,
     JsonObj,
     _as_list,

@@ -1,8 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "parental-controls-web"
+name = "technitium-content-filter"
 version = "1.0.0"
-description = "Web UI for Technitium Parental Controls DNS App"
+description = "Web UI for Technitium Content Filter DNS plugin"
 requires-python = ">=3.12"
+license = "Apache-2.0"
+readme = "../README.md"
+keywords = ["dns", "filtering", "parental-controls", "technitium"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: AsyncIO",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: Name Service (DNS)",
+]
 dependencies = [
     "starlette>=0.41,<1.0",
     "hypercorn>=0.17,<1.0",
@@ -11,6 +25,9 @@ dependencies = [
     "itsdangerous>=2.1,<3.0",
     "python-multipart>=0.0.17",
 ]
+
+[project.scripts]
+technitium-content-filter = "technitium_content_filter.cli:main"
 
 [project.optional-dependencies]
 test = [
@@ -23,13 +40,17 @@ test = [
     "uvicorn>=0.30,<1.0",
 ]
 
-[tool.uv]
-package = false
+[project.urls]
+Homepage = "https://github.com/coreyleavitt/technitium-content-filter"
+Documentation = "https://coreyleavitt.github.io/technitium-content-filter/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["technitium_content_filter"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=app --cov=config --cov=filtering --cov=middleware --cov=routes --cov-report=term-missing -m 'not e2e'"
+addopts = "-v --tb=short --cov=technitium_content_filter --cov-report=term-missing -m 'not e2e'"
 markers = [
     "unit: Unit tests (config, migrations, helpers)",
     "api: API endpoint tests",
@@ -51,7 +72,7 @@ docs = [
 
 [tool.mypy]
 strict = true
-files = ["app.py", "config.py", "filtering.py", "middleware.py", "routes.py"]
+files = ["technitium_content_filter"]
 
 [[tool.mypy.overrides]]
 module = "mako.*"

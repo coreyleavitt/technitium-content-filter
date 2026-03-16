@@ -12,14 +12,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-import config
-from middleware import (
+from . import config
+from .middleware import (
     AuthMiddleware,
     CSRFMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
 )
-from routes import (
+from .routes import (
     api_allowlist_save,
     api_blocklist_delete,
     api_blocklist_refresh,

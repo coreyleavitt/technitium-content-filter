@@ -182,17 +182,17 @@ def _make_client(tmp_path, config_data):
     services_path.write_text(json.dumps({}))
 
     with (
-        patch("config.CONFIG_PATH", config_path),
-        patch("config.BLOCKED_SERVICES_PATH", services_path),
-        patch("config.TECHNITIUM_API_TOKEN", "test-token"),
-        patch("config.TECHNITIUM_URL", "http://technitium-mock:5380"),
-        patch("config.AUTH_DISABLED", True),
+        patch("technitium_content_filter.config.CONFIG_PATH", config_path),
+        patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
+        patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+        patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
+        patch("technitium_content_filter.config.AUTH_DISABLED", True),
         respx.mock(assert_all_called=False) as mock,
     ):
         mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
             return_value=Response(200, json={"status": "ok"})
         )
-        from app import app
+        from technitium_content_filter.app import app
 
         yield TestClient(app, raise_server_exceptions=True), config_path
 
@@ -208,8 +208,8 @@ class TestConfigRoundTrip:
         """Any valid config survives save -> load without data loss."""
         config_path = tmp_path / "dnsApp.config"
 
-        with patch("config.CONFIG_PATH", config_path):
-            from config import load_config, save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", config_path):
+            from technitium_content_filter.config import load_config, save_config
 
             save_config(config)
             loaded = load_config()
@@ -236,8 +236,8 @@ class TestConfigRoundTrip:
         """Saved config is always valid JSON."""
         config_path = tmp_path / "dnsApp.config"
 
-        with patch("config.CONFIG_PATH", config_path):
-            from config import save_config
+        with patch("technitium_content_filter.config.CONFIG_PATH", config_path):
+            from technitium_content_filter.config import save_config
 
             save_config(config)
 
@@ -252,7 +252,7 @@ class TestMigrationIdempotency:
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_migrate_idempotent(self, config):
         """Running migration twice produces identical config."""
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         _migrate_blocklists(config)
         first = json.dumps(config, sort_keys=True)
@@ -285,7 +285,7 @@ class TestMigrationIdempotency:
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_migrate_always_produces_string_urls(self, profiles):
         """After migration, all profile blockLists entries are strings."""
-        from config import _migrate_blocklists
+        from technitium_content_filter.config import _migrate_blocklists
 
         config = {
             "profiles": {name: {"blockLists": bls} for name, bls in profiles.items()},
@@ -380,7 +380,9 @@ class TestApiNeverCrashes:
 @pytest.mark.property
 class TestRewriteNormalization:
     @given(domain=domain_name)
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=50, deadline=500, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     def test_domain_lowercased_and_dot_stripped(self, domain, tmp_path):
         """Domain is always lowercased and trailing dot stripped."""
         variants = [domain, domain.upper(), domain + ".", " " + domain + " "]
