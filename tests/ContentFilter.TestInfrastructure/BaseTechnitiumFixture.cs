@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,18 +6,18 @@ using DnsClient;
 using DnsClient.Protocol;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Xunit;
 
-namespace ContentFilter.IntegrationTests;
+namespace ContentFilter.TestInfrastructure;
 
 /// <summary>
-/// Shared test fixture that starts a Technitium DNS container, installs the plugin,
-/// and provides helpers for configuring and querying DNS.
+/// Abstract base fixture that starts a Technitium DNS container, authenticates,
+/// and provides helpers for configuring and querying DNS. Subclasses handle
+/// plugin installation.
 /// </summary>
-public sealed class TechnitiumFixture : IAsyncLifetime
+public abstract class BaseTechnitiumFixture : IAsyncLifetime
 {
     private const string AdminPassword = "integration-test-password";
-    private const string PluginName = "ContentFilter";
-    private const string ClassPath = "ContentFilter.App";
 
     private IContainer _container = null!;
     private HttpClient _http = null!;
@@ -28,6 +29,18 @@ public sealed class TechnitiumFixture : IAsyncLifetime
 
     /// <summary>Port mapped to Technitium's web API (5380).</summary>
     public int ApiPort { get; private set; }
+
+    /// <summary>Display name for this plugin (used in reports).</summary>
+    public abstract string PluginDisplayName { get; }
+
+    /// <summary>Plugin name as registered in Technitium.</summary>
+    protected abstract string PluginName { get; }
+
+    /// <summary>Full class path for the plugin entry point.</summary>
+    protected abstract string ClassPath { get; }
+
+    /// <summary>Installs the plugin into the running Technitium instance.</summary>
+    protected abstract Task InstallPluginAsync(HttpClient http, string apiToken);
 
     public async Task InitializeAsync()
     {
@@ -63,37 +76,14 @@ public sealed class TechnitiumFixture : IAsyncLifetime
         var loginJson = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         _apiToken = loginJson.GetProperty("token").GetString()!;
 
-        // Install the plugin
-        await InstallPluginAsync();
-    }
-
-    private async Task InstallPluginAsync()
-    {
-        var zipPath = FindPluginZip();
-
-        using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(_apiToken), "token");
-        form.Add(new StringContent(PluginName), "name");
-        form.Add(new ByteArrayContent(await File.ReadAllBytesAsync(zipPath)), "appZip", "ContentFilter.zip");
-
-        var response = await _http.PostAsync("/api/apps/install", form);
-        response.EnsureSuccessStatusCode();
-
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        if (body.GetProperty("status").GetString() != "ok")
-            throw new Exception($"Plugin install failed: {body}");
+        await InstallPluginAsync(_http, _apiToken);
     }
 
     /// <summary>
     /// Sets the plugin config and waits briefly for Technitium to reload.
     /// </summary>
-    public async Task SetConfigAsync(object config)
+    public async Task SetConfigAsync(string configJson)
     {
-        var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
         var response = await _http.PostAsync("/api/apps/config/set",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -104,7 +94,6 @@ public sealed class TechnitiumFixture : IAsyncLifetime
             }));
         response.EnsureSuccessStatusCode();
 
-        // Flush DNS cache so previous test results don't leak
         await FlushCacheAsync();
 
         // Brief delay to let Technitium process the config change
@@ -112,9 +101,21 @@ public sealed class TechnitiumFixture : IAsyncLifetime
     }
 
     /// <summary>
+    /// Sets the plugin config from an object (serialized with camelCase).
+    /// </summary>
+    public Task SetConfigAsync(object config)
+    {
+        var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+        return SetConfigAsync(configJson);
+    }
+
+    /// <summary>
     /// Flushes the Technitium DNS cache to prevent cross-test contamination.
     /// </summary>
-    private async Task FlushCacheAsync()
+    public async Task FlushCacheAsync()
     {
         var response = await _http.PostAsync("/api/cache/flush",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -125,11 +126,12 @@ public sealed class TechnitiumFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Queries the Technitium DNS container using DnsClient and returns the parsed response.
+    /// Queries the Technitium DNS container and returns the parsed response.
     /// </summary>
     public async Task<DnsResponse> QueryAsync(string domain, ushort queryType = 1 /* A */)
     {
-        var endpoint = new IPEndPoint(IPAddress.Parse(_dnsHost == "localhost" ? "127.0.0.1" : _dnsHost), DnsPort);
+        var endpoint = new IPEndPoint(
+            IPAddress.Parse(_dnsHost == "localhost" ? "127.0.0.1" : _dnsHost), DnsPort);
         var options = new LookupClientOptions(endpoint)
         {
             UseCache = false,
@@ -164,28 +166,16 @@ public sealed class TechnitiumFixture : IAsyncLifetime
         return new DnsResponse(rcode, answers);
     }
 
-    private static string FindPluginZip()
+    /// <summary>
+    /// Queries DNS with timing, returning the response code and latency.
+    /// </summary>
+    public async Task<(byte Rcode, TimeSpan Latency)> TimedQueryAsync(
+        string domain, ushort queryType = 1)
     {
-        var candidates = new[]
-        {
-            "/src/app/dist/ContentFilter.zip", // Docker build path
-        };
-
-        foreach (var path in candidates)
-            if (File.Exists(path))
-                return path;
-
-        // Walk up from test binary
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 10; i++)
-        {
-            var candidate = Path.Combine(dir, "dist", "ContentFilter.zip");
-            if (File.Exists(candidate))
-                return candidate;
-            dir = Path.GetDirectoryName(dir)!;
-        }
-        throw new FileNotFoundException(
-            "Plugin ZIP not found. Run: docker build -f Dockerfile.build -o dist . from the project root first.");
+        var start = Stopwatch.GetTimestamp();
+        var response = await QueryAsync(domain, queryType);
+        var elapsed = Stopwatch.GetElapsedTime(start);
+        return (response.ResponseCode, elapsed);
     }
 
     public async Task DisposeAsync()
@@ -194,21 +184,4 @@ public sealed class TechnitiumFixture : IAsyncLifetime
         if (_container is not null)
             await _container.DisposeAsync();
     }
-}
-
-/// <summary>Parsed DNS response.</summary>
-public record DnsResponse(byte ResponseCode, List<DnsAnswer> Answers)
-{
-    public bool IsNxDomain => ResponseCode == 3;
-    public bool IsNoError => ResponseCode == 0;
-    public DnsAnswer? FirstAnswer => Answers.Count > 0 ? Answers[0] : null;
-    public string? CnameTarget => Answers.Where(a => a.Type == 5).Select(a => a.Data).FirstOrDefault();
-}
-
-/// <summary>Parsed DNS answer record.</summary>
-public record DnsAnswer(ushort Type, uint Ttl, string Data)
-{
-    public bool IsA => Type == 1;
-    public bool IsCname => Type == 5;
-    public bool IsAaaa => Type == 28;
 }

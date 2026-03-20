@@ -1,3 +1,5 @@
+using ContentFilter.TestInfrastructure;
+
 namespace ContentFilter.IntegrationTests;
 
 /// <summary>
@@ -11,9 +13,9 @@ namespace ContentFilter.IntegrationTests;
 [Trait("Category", "Integration")]
 public class DnsFilteringTests
 {
-    private readonly TechnitiumFixture _fixture;
+    private readonly ContentFilterFixture _fixture;
 
-    public DnsFilteringTests(TechnitiumFixture fixture) => _fixture = fixture;
+    public DnsFilteringTests(ContentFilterFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task BlockedDomain_ReturnsNxDomain()

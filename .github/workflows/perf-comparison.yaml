@@ -1,0 +1,86 @@
+name: Performance Comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  start-runner:
+    name: Start perf-test VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect to Tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Start VM via SSH (idempotent)
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.NAS_SSH_USER }}@${{ secrets.NAS_TAILNET_HOST }} \
+            'virsh start ${{ secrets.PERF_VM_NAME }} 2>&1 || true'
+
+      - name: Wait for runner to register
+        run: sleep 30
+
+  perf-test:
+    name: Run performance comparison
+    needs: start-runner
+    runs-on: [self-hosted, perf-test]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build performance comparison image
+        run: docker build -f Dockerfile.perf-comparison -t content-filter-perf .
+
+      - name: Run performance comparison
+        run: |
+          mkdir -p results
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v ${{ github.workspace }}/results:/results \
+            content-filter-perf
+
+      - name: Display results
+        if: always()
+        run: |
+          for f in results/*.md; do
+            [ -f "$f" ] && cat "$f"
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-comparison-results
+          path: results/
+          if-no-files-found: ignore
+
+  stop-runner:
+    name: Stop perf-test VM
+    needs: perf-test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Connect to Tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Stop VM via SSH (idempotent, retry on failure)
+        run: |
+          for attempt in 1 2 3; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              ${{ secrets.NAS_SSH_USER }}@${{ secrets.NAS_TAILNET_HOST }} \
+              'virsh shutdown ${{ secrets.PERF_VM_NAME }} 2>&1 || true' \
+              && exit 0
+            echo "Attempt $attempt failed, retrying in 30s..."
+            sleep 30
+          done
+          echo "::warning::Failed to stop VM after 3 attempts -- may still be running"

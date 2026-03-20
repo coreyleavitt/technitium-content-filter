@@ -16,17 +16,25 @@ RUN dotnet build /src/TechnitiumLibrary/TechnitiumLibrary/TechnitiumLibrary.cspr
 WORKDIR /src/DnsServer/DnsServerCore.ApplicationCommon
 RUN dotnet build -c Release
 
-# Copy app source and build the plugin ZIP
+# Copy app source and build the ContentFilter plugin ZIP
 WORKDIR /src/app
 COPY src/ContentFilter/ ./src/ContentFilter/
 RUN dotnet publish src/ContentFilter/ContentFilter.csproj -c Release -o /src/app/publish && \
     mkdir -p /src/app/dist && \
     cd /src/app/publish && zip -r /src/app/dist/ContentFilter.zip .
 
-# Copy shared test infrastructure and integration test project
+# Build the Advanced Blocking App ZIP from DnsServer source
+RUN dotnet publish /src/DnsServer/Apps/AdvancedBlockingApp/AdvancedBlockingApp.csproj \
+      -c Release -o /src/ab-publish && \
+    cd /src/ab-publish && zip -r /src/app/dist/AdvancedBlockingApp.zip .
+
+# Create results directory for report output
+RUN mkdir -p /results
+
+# Copy shared test infrastructure and performance comparison project
 COPY tests/ContentFilter.TestInfrastructure/ ./tests/ContentFilter.TestInfrastructure/
-COPY tests/ContentFilter.IntegrationTests/ ./tests/ContentFilter.IntegrationTests/
-WORKDIR /src/app/tests/ContentFilter.IntegrationTests
+COPY tests/ContentFilter.PerformanceComparison/ ./tests/ContentFilter.PerformanceComparison/
+WORKDIR /src/app/tests/ContentFilter.PerformanceComparison
 RUN dotnet restore
 
 # Testcontainers uses the Docker socket to launch sibling containers.
