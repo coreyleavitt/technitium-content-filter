@@ -52,7 +52,16 @@ internal static class DomainEvaluator
     /// </summary>
     internal static bool IsBlocked(CompiledProfile profile, string domain)
     {
-        return profile.BlockedDomains.Count > 0 && DomainMatcher.Matches(profile.BlockedDomains, domain);
+        return FindBlockedDomain(profile, domain) is not null;
+    }
+
+    /// <summary>
+    /// Returns the matched domain string from the blocklist, or null if no match.
+    /// The returned value may be a parent domain due to subdomain walking.
+    /// </summary>
+    internal static string? FindBlockedDomain(CompiledProfile profile, string domain)
+    {
+        return profile.BlockedDomains.Count > 0 ? DomainMatcher.FindMatch(profile.BlockedDomains, domain) : null;
     }
 
     /// <summary>
@@ -70,13 +79,27 @@ internal static class DomainEvaluator
     /// </summary>
     internal static bool IsRegexBlocked(CompiledProfile profile, string domain)
     {
-        return MatchesAnyRegex(profile.BlockedRegexes, domain);
+        return FindBlockingRegex(profile, domain) is not null;
+    }
+
+    /// <summary>
+    /// Returns the pattern text of the first matching regex block rule, or null if no match.
+    /// On RegexMatchTimeoutException, treats the pattern as non-matching (fail-open).
+    /// </summary>
+    internal static string? FindBlockingRegex(CompiledProfile profile, string domain)
+    {
+        return FindMatchingRegex(profile.BlockedRegexes, domain);
     }
 
     private static bool MatchesAnyRegex(Regex[] patterns, string domain)
     {
+        return FindMatchingRegex(patterns, domain) is not null;
+    }
+
+    private static string? FindMatchingRegex(Regex[] patterns, string domain)
+    {
         if (patterns.Length == 0)
-            return false;
+            return null;
 
         // Trim trailing FQDN dot
         var trimmed = domain.EndsWith('.') ? domain[..^1] : domain;
@@ -86,7 +109,7 @@ internal static class DomainEvaluator
             try
             {
                 if (regex.IsMatch(trimmed))
-                    return true;
+                    return regex.ToString();
             }
             catch (RegexMatchTimeoutException)
             {
@@ -94,6 +117,6 @@ internal static class DomainEvaluator
             }
         }
 
-        return false;
+        return null;
     }
 }

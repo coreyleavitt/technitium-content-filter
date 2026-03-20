@@ -8,7 +8,7 @@ using TechnitiumLibrary.Net.Dns.ResourceRecords;
 namespace ContentFilter.Benchmarks;
 
 /// <summary>
-/// Benchmarks the full IsAllowed evaluation path and individual steps.
+/// Benchmarks the full Evaluate path and individual steps.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob]
@@ -35,7 +35,7 @@ public class FilteringServiceBenchmarks
 
         _emptyRewrites = new Dictionary<string, DnsRewriteConfig>();
 
-        // Full IsAllowed path setup
+        // Full Evaluate path setup
         var config = new AppConfig
         {
             EnableBlocking = true,
@@ -118,10 +118,10 @@ public class FilteringServiceBenchmarks
         FilteringService.ResolveProfile(_cidrConfig, null, IPAddress.Parse("192.168.1.50"));
 
     [Benchmark]
-    public bool IsAllowed_FullPath_Blocked() =>
-        _filteringService.IsAllowed(_blockedRequest, _ep, "blocked5000.example.com", out _, out _);
+    public FilterResult Evaluate_FullPath_Blocked() =>
+        _filteringService.Evaluate(_blockedRequest, _ep, "blocked5000.example.com");
 
     [Benchmark]
-    public bool IsAllowed_FullPath_Allowed() =>
-        _filteringService.IsAllowed(_allowedRequest, _ep, "allowed.test.com", out _, out _);
+    public FilterResult Evaluate_FullPath_Allowed() =>
+        _filteringService.Evaluate(_allowedRequest, _ep, "allowed.test.com");
 }

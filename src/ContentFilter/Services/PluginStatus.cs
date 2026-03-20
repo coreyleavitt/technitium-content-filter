@@ -10,4 +10,5 @@ public sealed class PluginStatus
     public Dictionary<string, BlockListStatus> BlockListStatuses { get; init; } = new();
     public bool IsInitialized { get; init; }
     public int PendingRewriteCount { get; init; }
+    public int PendingBlockCount { get; init; }
 }

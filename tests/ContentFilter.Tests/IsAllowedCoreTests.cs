@@ -8,7 +8,7 @@ using TechnitiumLibrary.Net.Dns.ResourceRecords;
 namespace ContentFilter.Tests;
 
 /// <summary>
-/// Tests the full IsAllowed evaluation order (steps 1-8) through the public API.
+/// Tests the full Evaluate evaluation order (steps 1-10) through the public API.
 /// Uses real DnsDatagram instances via the Technitium library.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -61,10 +61,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com");
 
-        Assert.True(allowed);
-        Assert.Contains("blocking disabled", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("blocking disabled", result.DebugSummary);
     }
 
     // Step 2-3: No matching profile, no base profile -> ALLOW
@@ -74,9 +74,9 @@ public class IsAllowedCoreTests
         var config = new AppConfig { EnableBlocking = true };
         var svc = CreateService(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out _, out _);
+        var result = svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com");
 
-        Assert.True(allowed);
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // Step 3: No matching profile, falls back to base profile
@@ -97,15 +97,15 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com");
 
-        Assert.False(allowed);
-        Assert.Contains("BLOCKED", debug);
+        Assert.Equal(FilterAction.Block, result.Action);
+        Assert.Contains("BLOCKED", result.DebugSummary);
     }
 
     // Step 4: Rewrite takes priority over blocks
     [Fact]
-    public void RewriteMatch_ReturnsFalseWithRewriteConfig()
+    public void RewriteMatch_ReturnsRewriteAction()
     {
         var rewriteConfig = new DnsRewriteConfig { Domain = "youtube.com", Answer = "restrict.youtube.com" };
         var config = new AppConfig
@@ -126,12 +126,12 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com", out var debug, out var rewrite);
+        var result = svc.Evaluate(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com");
 
-        Assert.False(allowed);
-        Assert.NotNull(rewrite);
-        Assert.Equal("restrict.youtube.com", rewrite.Answer);
-        Assert.Contains("REWRITE", debug);
+        Assert.Equal(FilterAction.Rewrite, result.Action);
+        Assert.NotNull(result.Rewrite);
+        Assert.Equal("restrict.youtube.com", result.Rewrite.Answer);
+        Assert.Contains("REWRITE", result.DebugSummary);
     }
 
     // Step 5: Allowlist overrides blocks
@@ -152,10 +152,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("example.com"), EP("10.0.0.1"), "example.com");
 
-        Assert.True(allowed);
-        Assert.Contains("allowlisted", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("allowlisted", result.DebugSummary);
     }
 
     // Step 6: Schedule inactive -> ALLOW
@@ -187,15 +187,8 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        // Query on a Tuesday -- no schedule entry, but schedule exists, so fallback logic applies
-        // The schedule has no "allow" windows, so fallback returns false (blocking inactive)
-        // Actually: DayNotInSchedule returns true (blocking active) because TryGetValue fails for "tue"
-        // Wait -- IsBlockingActiveNow returns true when the day has no entry. So it WILL block.
-        // Let's test on Monday at 20:00 (outside the 09-17 block window) instead.
-        // But we can't inject time here... IsAllowed doesn't take a DateTime param.
         // This test verifies the schedule path exists but can't fully control timing.
         // The detailed schedule logic is tested in ScheduleTests.cs.
-        // Skip this -- we already have thorough schedule unit tests.
     }
 
     // Step 7: Blocked domain -> BLOCK
@@ -216,10 +209,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com");
 
-        Assert.False(allowed);
-        Assert.Contains("BLOCKED", debug);
+        Assert.Equal(FilterAction.Block, result.Action);
+        Assert.Contains("BLOCKED", result.DebugSummary);
     }
 
     // Step 8: No match -> ALLOW
@@ -240,9 +233,9 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("safe.com"), EP("10.0.0.1"), "safe.com", out _, out _);
+        var result = svc.Evaluate(MakeRequest("safe.com"), EP("10.0.0.1"), "safe.com");
 
-        Assert.True(allowed);
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // Profile not found -> ALLOW
@@ -256,10 +249,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com");
 
-        Assert.True(allowed);
-        Assert.Contains("profile not found", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("profile not found", result.DebugSummary);
     }
 
     // Profile exists in config but not compiled yet -> ALLOW
@@ -275,25 +268,22 @@ public class IsAllowedCoreTests
         // Don't call UpdateCompiledProfiles
         var svc = CreateService(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com");
 
-        Assert.True(allowed);
-        Assert.Contains("not compiled", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("not compiled", result.DebugSummary);
     }
 
-    // Exception handling: IsAllowed wraps exceptions and returns true (fail open)
+    // Exception handling: Evaluate wraps exceptions and returns Allow (fail open)
     [Fact]
-    public void ExceptionInIsAllowed_FailsOpen()
+    public void ExceptionInEvaluate_FailsOpen()
     {
-        // Config with null Clients list would cause NRE in ResolveProfile
         var configSvc = new ConfigService(Path.GetTempPath());
         configSvc.Load("{}"); // valid but empty
         var svc = new FilteringService(configSvc);
 
-        // This should not throw -- it should return true with ERROR debug info
-        // Empty config has no clients, no profiles. DefaultProfile=null, BaseProfile=null => returns true
-        var allowed = svc.IsAllowed(MakeRequest("test.com"), EP("10.0.0.1"), "test.com", out _, out _);
-        Assert.True(allowed);
+        var result = svc.Evaluate(MakeRequest("test.com"), EP("10.0.0.1"), "test.com");
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // Evaluation priority: Rewrite beats allowlist beats block
@@ -319,11 +309,11 @@ public class IsAllowedCoreTests
         var svc = CreateService(config, compiled);
 
         // Domain is in rewrites, allowlist, AND blocklist. Rewrite should win.
-        var allowed = svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out var debug, out var rewrite);
+        var result = svc.Evaluate(MakeRequest("example.com"), EP("10.0.0.1"), "example.com");
 
-        Assert.False(allowed); // rewrite returns false
-        Assert.NotNull(rewrite);
-        Assert.Contains("REWRITE", debug);
+        Assert.Equal(FilterAction.Rewrite, result.Action);
+        Assert.NotNull(result.Rewrite);
+        Assert.Contains("REWRITE", result.DebugSummary);
     }
 
     // Subdomain of blocked domain
@@ -344,16 +334,15 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("sub.example.com"), EP("10.0.0.1"), "sub.example.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("sub.example.com"), EP("10.0.0.1"), "sub.example.com");
 
-        Assert.False(allowed);
-        Assert.Contains("BLOCKED", debug);
+        Assert.Equal(FilterAction.Block, result.Action);
+        Assert.Contains("BLOCKED", result.DebugSummary);
     }
 
-    // Full pipeline: AppConfig -> ProfileCompiler.CompileAll -> FilteringService.UpdateCompiledProfiles -> IsAllowed
-    // This verifies that the compiler output integrates correctly with filtering (no manual CompiledProfile construction).
+    // Full pipeline: AppConfig -> ProfileCompiler.CompileAll -> FilteringService.UpdateCompiledProfiles -> Evaluate
     [Fact]
-    public void FullPipeline_CompileAll_ThenIsAllowed()
+    public void FullPipeline_CompileAll_ThenEvaluate()
     {
         var registry = new ServiceRegistry();
         registry.MergeCustomServices(new Dictionary<string, BlockedServiceDefinition>
@@ -384,26 +373,28 @@ public class IsAllowedCoreTests
         svc.UpdateCompiledProfiles(compiled);
 
         // Blocked via service expansion
-        Assert.False(svc.IsAllowed(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com", out _, out _));
-        Assert.False(svc.IsAllowed(MakeRequest("ytimg.com"), EP("10.0.0.1"), "ytimg.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com").Action);
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("ytimg.com"), EP("10.0.0.1"), "ytimg.com").Action);
 
         // Blocked via custom rule
-        Assert.False(svc.IsAllowed(MakeRequest("ads.example.com"), EP("10.0.0.1"), "ads.example.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("ads.example.com"), EP("10.0.0.1"), "ads.example.com").Action);
 
         // Allowlisted via @@-rule overrides service block
-        Assert.True(svc.IsAllowed(MakeRequest("safe.youtube.com"), EP("10.0.0.1"), "safe.youtube.com", out var debug, out _));
-        Assert.Contains("allowlisted", debug);
+        var safeResult = svc.Evaluate(MakeRequest("safe.youtube.com"), EP("10.0.0.1"), "safe.youtube.com");
+        Assert.Equal(FilterAction.Allow, safeResult.Action);
+        Assert.Contains("allowlisted", safeResult.DebugSummary);
 
         // Allowlisted via allowList
-        Assert.True(svc.IsAllowed(MakeRequest("school.edu"), EP("10.0.0.1"), "school.edu", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("school.edu"), EP("10.0.0.1"), "school.edu").Action);
 
         // Rewrite
-        Assert.False(svc.IsAllowed(MakeRequest("search.com"), EP("10.0.0.1"), "search.com", out _, out var rewrite));
-        Assert.NotNull(rewrite);
-        Assert.Equal("safesearch.google.com", rewrite.Answer);
+        var rwResult = svc.Evaluate(MakeRequest("search.com"), EP("10.0.0.1"), "search.com");
+        Assert.Equal(FilterAction.Rewrite, rwResult.Action);
+        Assert.NotNull(rwResult.Rewrite);
+        Assert.Equal("safesearch.google.com", rwResult.Rewrite.Answer);
 
         // Unblocked domain passes through
-        Assert.True(svc.IsAllowed(MakeRequest("wikipedia.org"), EP("10.0.0.1"), "wikipedia.org", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("wikipedia.org"), EP("10.0.0.1"), "wikipedia.org").Action);
     }
 
     // Step 9: Regex block rule blocks matching domain
@@ -426,10 +417,12 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        Assert.False(svc.IsAllowed(MakeRequest("ad.example.com"), EP("10.0.0.1"), "ad.example.com", out var debug, out _));
-        Assert.Contains("BLOCKED (regex)", debug);
+        var result1 = svc.Evaluate(MakeRequest("ad.example.com"), EP("10.0.0.1"), "ad.example.com");
+        Assert.Equal(FilterAction.Block, result1.Action);
+        Assert.Contains("BLOCKED (regex)", result1.DebugSummary);
 
-        Assert.False(svc.IsAllowed(MakeRequest("ads123.tracker.net"), EP("10.0.0.1"), "ads123.tracker.net", out _, out _));
+        var result2 = svc.Evaluate(MakeRequest("ads123.tracker.net"), EP("10.0.0.1"), "ads123.tracker.net");
+        Assert.Equal(FilterAction.Block, result2.Action);
     }
 
     // Regex allow overrides domain block
@@ -452,10 +445,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com");
 
-        Assert.True(allowed);
-        Assert.Contains("regex allowlisted", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("regex allowlisted", result.DebugSummary);
     }
 
     // Regex allow overrides regex block
@@ -481,11 +474,13 @@ public class IsAllowedCoreTests
         var svc = CreateService(config, compiled);
 
         // safe.example.com matches both regex allow and regex block -- allow wins (evaluated first)
-        Assert.True(svc.IsAllowed(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com", out var debug, out _));
-        Assert.Contains("regex allowlisted", debug);
+        var result1 = svc.Evaluate(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com");
+        Assert.Equal(FilterAction.Allow, result1.Action);
+        Assert.Contains("regex allowlisted", result1.DebugSummary);
 
         // bad.example.com only matches regex block
-        Assert.False(svc.IsAllowed(MakeRequest("bad.example.com"), EP("10.0.0.1"), "bad.example.com", out _, out _));
+        var result2 = svc.Evaluate(MakeRequest("bad.example.com"), EP("10.0.0.1"), "bad.example.com");
+        Assert.Equal(FilterAction.Block, result2.Action);
     }
 
     // Domain allow overrides regex block
@@ -508,10 +503,10 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("example.com"), EP("10.0.0.1"), "example.com");
 
-        Assert.True(allowed);
-        Assert.Contains("allowlisted", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("allowlisted", result.DebugSummary);
     }
 
     // Regex timeout treated as no-match (fail-open)
@@ -536,11 +531,10 @@ public class IsAllowedCoreTests
         var svc = CreateService(config, compiled);
 
         // Domain with many 'a's that causes backtracking against ^(a+)+b pattern
-        // Use a valid domain name format that still triggers the issue
         var evilDomain = new string('a', 25) + ".com";
-        var allowed = svc.IsAllowed(MakeRequest(evilDomain), EP("10.0.0.1"), evilDomain, out _, out _);
+        var result = svc.Evaluate(MakeRequest(evilDomain), EP("10.0.0.1"), evilDomain);
 
-        Assert.True(allowed);
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // No regex rules -> domain passes through to default allow
@@ -561,7 +555,7 @@ public class IsAllowedCoreTests
         };
         var svc = CreateService(config, compiled);
 
-        Assert.True(svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com").Action);
     }
 
     // Client IP resolves to correct profile
@@ -594,8 +588,8 @@ public class IsAllowedCoreTests
         var svc = CreateService(config, compiled);
 
         // Kids profile blocks it
-        Assert.False(svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com").Action);
         // Adults profile doesn't block it
-        Assert.True(svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.2"), "blocked.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.2"), "blocked.com").Action);
     }
 }

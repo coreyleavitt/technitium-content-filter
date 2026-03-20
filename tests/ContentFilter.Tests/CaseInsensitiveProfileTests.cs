@@ -76,21 +76,20 @@ public class CaseInsensitiveProfileTests
 
         // Default profile "KIDS" should match compiled profile "kids"
         // because compiled dict uses OrdinalIgnoreCase
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP(), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP(), "blocked.com");
 
         // The profile lookup in config.Profiles uses default Dict comparison (case-sensitive).
         // If "KIDS" != "kids" in config.Profiles.TryGetValue, it won't find the profile.
-        // This tests whether the system handles this case.
         // config.Profiles is case-sensitive (default Dictionary), so TryGetValue("KIDS") fails for key "kids".
-        if (debug.Contains("profile not found"))
+        if (result.DebugSummary.Contains("profile not found"))
         {
             // Expected: config.Profiles is case-sensitive, so "KIDS" doesn't find "kids"
-            Assert.True(allowed);
+            Assert.Equal(FilterAction.Allow, result.Action);
         }
         else
         {
             // If the config happens to use case-insensitive dict, it would block
-            Assert.False(allowed);
+            Assert.Equal(FilterAction.Block, result.Action);
         }
     }
 
@@ -118,17 +117,17 @@ public class CaseInsensitiveProfileTests
 
         // Client resolution returns "Kids" (mixed case).
         // config.Profiles.TryGetValue("Kids") -- default Dict is case-sensitive.
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP(), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP(), "blocked.com");
 
         // Document the actual behavior: config.Profiles is a default Dictionary<string, ProfileConfig>
         // which is case-sensitive. "Kids" != "kids".
-        if (debug.Contains("profile not found"))
+        if (result.DebugSummary.Contains("profile not found"))
         {
-            Assert.True(allowed); // Fail-open because profile not found in config
+            Assert.Equal(FilterAction.Allow, result.Action); // Fail-open because profile not found in config
         }
         else
         {
-            Assert.False(allowed);
+            Assert.Equal(FilterAction.Block, result.Action);
         }
     }
 

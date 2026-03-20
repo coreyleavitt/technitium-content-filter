@@ -34,4 +34,7 @@ public sealed class AppConfig
 
     [JsonPropertyName("blockLists")]
     public List<BlockListConfig> BlockLists { get; set; } = new();
+
+    [JsonPropertyName("allowTxtBlockingReport")]
+    public bool AllowTxtBlockingReport { get; set; }
 }

@@ -10,7 +10,7 @@ namespace ContentFilter.Tests;
 
 /// <summary>
 /// Tests the App plugin class (main entry point) including initialization,
-/// IsAllowedAsync, ProcessRequestAsync, and the rewrite flow.
+/// IsAllowedAsync, ProcessRequestAsync, the rewrite flow, and blocking diagnostics.
 /// </summary>
 [Trait("Category", "Unit")]
 public class AppTests : IDisposable
@@ -24,6 +24,7 @@ public class AppTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         _mockServer = Substitute.For<IDnsServer>();
         _mockServer.ApplicationFolder.Returns(_tempDir);
+        _mockServer.UdpPayloadSize.Returns((ushort)1232);
     }
 
     public void Dispose()
@@ -31,12 +32,24 @@ public class AppTests : IDisposable
         try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
-    private static DnsDatagram MakeRequest(string domain, ushort id = 1)
+    private static DnsDatagram MakeRequest(string domain, ushort id = 1,
+        DnsResourceRecordType qtype = DnsResourceRecordType.A)
     {
-        var question = new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN);
+        var question = new DnsQuestionRecord(domain, qtype, DnsClass.IN);
         return new DnsDatagram(
             id, false, DnsOpcode.StandardQuery, false, false, true, false, false, false,
             DnsResponseCode.NoError, new[] { question });
+    }
+
+    private static DnsDatagram MakeEdnsRequest(string domain, ushort id = 1,
+        DnsResourceRecordType qtype = DnsResourceRecordType.A)
+    {
+        var question = new DnsQuestionRecord(domain, qtype, DnsClass.IN);
+        return new DnsDatagram(
+            id, false, DnsOpcode.StandardQuery, false, false, true, false, false, false,
+            DnsResponseCode.NoError, new[] { question },
+            null, null, null,
+            1232);
     }
 
     private static IPEndPoint EP(string ip = "10.0.0.1") => new(IPAddress.Parse(ip), 53);
@@ -261,7 +274,6 @@ public class AppTests : IDisposable
         var allowed = await app.IsAllowedAsync(request, EP());
         Assert.False(allowed);
 
-        // No pending rewrite, so ProcessRequest returns NxDomain
         var response = await app.ProcessRequestAsync(request, EP());
         Assert.Equal(DnsResponseCode.NxDomain, response.RCODE);
     }
@@ -513,8 +525,204 @@ public class AppTests : IDisposable
         var result2 = await app.IsAllowedAsync(MakeRequest("safe.com"), EP());
         Assert.True(result2);
 
-        // Verify error was logged (the timer fires after 5s, but we can verify the app
-        // survives initialization even with bad blocklist URLs)
         _mockServer.Received().WriteLog(Arg.Is<string>(s => s.Contains("initialized")));
+    }
+
+    // --- Blocking diagnostics tests ---
+
+    [Fact]
+    public async Task BlockedDomain_TxtQuery_DiagnosticsEnabled_ReturnsTxtRecord()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 60, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        Assert.Equal(DnsResourceRecordType.TXT, response.Answer[0].Type);
+        var txt = response.Answer[0].RDATA as DnsTXTRecordData;
+        Assert.NotNull(txt);
+        Assert.Contains("source=content-filter", txt.GetText());
+        Assert.Contains("domain=blocked.com", txt.GetText());
+        Assert.Contains("profile=kids", txt.GetText());
+        Assert.Contains("matchedDomain=blocked.com", txt.GetText());
+    }
+
+    [Fact]
+    public async Task BlockedDomain_AQuery_EdnsClient_DiagnosticsEnabled_ReturnsEde()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeEdnsRequest("blocked.com", id: 61);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NxDomain, response.RCODE);
+        // EDNS response should include OPT record with EDE
+        Assert.NotNull(response.EDNS);
+    }
+
+    [Fact]
+    public async Task BlockedDomain_AQuery_NoEdns_DiagnosticsEnabled_ReturnsPlainNxdomain()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        // Non-EDNS A query
+        var request = MakeRequest("blocked.com", id: 62);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NxDomain, response.RCODE);
+        // No EDNS in response because client didn't send EDNS
+        Assert.Null(response.EDNS);
+    }
+
+    [Fact]
+    public async Task BlockedDomain_DiagnosticsDisabled_ReturnsPlainNxdomain()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": false,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        // Even with EDNS, diagnostics disabled -> plain NXDOMAIN
+        var request = MakeEdnsRequest("blocked.com", id: 63, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NxDomain, response.RCODE);
+    }
+
+    [Fact]
+    public async Task BlockedDomain_TxtReportFormat_DomainBlock()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["ads.example.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("sub.ads.example.com", id: 64, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        var txt = response.Answer[0].RDATA as DnsTXTRecordData;
+        Assert.NotNull(txt);
+        var report = txt.GetText();
+        Assert.Contains("source=content-filter", report);
+        Assert.Contains("domain=sub.ads.example.com", report);
+        Assert.Contains("profile=kids", report);
+        Assert.Contains("matchedDomain=ads.example.com", report);
+    }
+
+    [Fact]
+    public async Task BlockedDomain_TxtReportFormat_RegexBlock()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "regexBlockRules": ["^ads?\\d*\\."]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("ad123.tracker.net", id: 65, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        var txt = response.Answer[0].RDATA as DnsTXTRecordData;
+        Assert.NotNull(txt);
+        var report = txt.GetText();
+        Assert.Contains("source=content-filter", report);
+        Assert.Contains("regex=", report);
+    }
+
+    [Fact]
+    public async Task BlockedDomain_SubdomainWalking_ReportsParentDomain()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["example.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("deep.sub.example.com", id: 66, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        var txt = response.Answer[0].RDATA as DnsTXTRecordData;
+        Assert.NotNull(txt);
+        // The queried domain is deep.sub.example.com, but the matched domain is example.com
+        Assert.Contains("domain=deep.sub.example.com", txt.GetText());
+        Assert.Contains("matchedDomain=example.com", txt.GetText());
     }
 }

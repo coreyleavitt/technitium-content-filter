@@ -37,7 +37,7 @@ public class FilteringPerformanceTests
     private static IPEndPoint EP(string ip = "192.168.1.50") => new(IPAddress.Parse(ip), 53);
 
     [Fact]
-    public void IsAllowed_10kBlockedDomains_Throughput()
+    public void Evaluate_10kBlockedDomains_Throughput()
     {
         var config = new AppConfig
         {
@@ -63,8 +63,8 @@ public class FilteringPerformanceTests
         // Warmup
         for (int i = 0; i < 100; i++)
         {
-            svc.IsAllowed(blockedReq, EP(), "blocked5000.example.com", out _, out _);
-            svc.IsAllowed(allowedReq, EP(), "allowed.test.com", out _, out _);
+            svc.Evaluate(blockedReq, EP(), "blocked5000.example.com");
+            svc.Evaluate(allowedReq, EP(), "allowed.test.com");
         }
 
         // Timed run: 10k iterations of blocked + allowed queries
@@ -72,8 +72,8 @@ public class FilteringPerformanceTests
         const int iterations = 10_000;
         for (int i = 0; i < iterations; i++)
         {
-            svc.IsAllowed(blockedReq, EP(), "blocked5000.example.com", out _, out _);
-            svc.IsAllowed(allowedReq, EP(), "allowed.test.com", out _, out _);
+            svc.Evaluate(blockedReq, EP(), "blocked5000.example.com");
+            svc.Evaluate(allowedReq, EP(), "allowed.test.com");
         }
         sw.Stop();
 

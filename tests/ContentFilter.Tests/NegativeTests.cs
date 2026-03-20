@@ -47,8 +47,6 @@ public class NegativeTests
     [Fact]
     public void EmptyDomain_DoesNotCrash()
     {
-        // Technitium validates domains in DnsQuestionRecord, rejecting dots/hyphens at boundaries.
-        // Test that IsAllowed handles an empty string passed as the questionDomain parameter.
         var config = new AppConfig
         {
             EnableBlocking = true,
@@ -64,8 +62,8 @@ public class NegativeTests
         var svc = CreateService(config, compiled);
 
         // Pass a valid DnsDatagram but override the questionDomain string
-        var allowed = svc.IsAllowed(MakeRequest("valid.com"), EP("10.0.0.1"), "", out _, out _);
-        Assert.True(allowed);
+        var result = svc.Evaluate(MakeRequest("valid.com"), EP("10.0.0.1"), "");
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     [Theory]
@@ -88,13 +86,13 @@ public class NegativeTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest(domain), EP("10.0.0.1"), domain, out _, out _);
-        Assert.True(allowed);
+        var result = svc.Evaluate(MakeRequest(domain), EP("10.0.0.1"), domain);
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     /// <summary>
     /// Technitium's DnsQuestionRecord rejects domains with leading dots, trailing dots,
-    /// empty labels, and leading hyphens. These never reach IsAllowed in production.
+    /// empty labels, and leading hyphens. These never reach Evaluate in production.
     /// Verify the library validates them at construction time.
     /// </summary>
     [Theory]
@@ -129,12 +127,12 @@ public class NegativeTests
         };
         var svc = CreateService(config, compiled);
 
-        var allowed = svc.IsAllowed(MakeRequest(domain), EP("10.0.0.1"), domain, out _, out _);
+        var result = svc.Evaluate(MakeRequest(domain), EP("10.0.0.1"), domain);
 
         if (domain == "xn--nxasmq6b.com" || domain == "sub.xn--nxasmq6b.com")
-            Assert.False(allowed, $"Punycode domain '{domain}' should be blocked");
+            Assert.Equal(FilterAction.Block, result.Action);
         else
-            Assert.True(allowed);
+            Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // --- Pathologically large configs ---
@@ -230,7 +228,7 @@ public class NegativeTests
         };
         var svc = CreateService(config, compiled);
 
-        Assert.True(svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com").Action);
     }
 
     [Fact]
@@ -251,7 +249,7 @@ public class NegativeTests
         };
         var svc = CreateService(config, compiled);
 
-        Assert.False(svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com").Action);
     }
 
     // --- Client config edge cases ---

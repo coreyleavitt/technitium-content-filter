@@ -7,7 +7,7 @@ using TechnitiumLibrary.Net.Dns.ResourceRecords;
 namespace ContentFilter.Tests;
 
 /// <summary>
-/// Issue #34: Integration test for the full 8-step filtering pipeline.
+/// Issue #34: Integration test for the full 10-step filtering pipeline.
 /// Exercises all evaluation steps end-to-end using real objects (no mocks for services).
 /// </summary>
 [Trait("Category", "Unit")]
@@ -62,10 +62,10 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out var debug, out _);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com");
 
-        Assert.True(allowed);
-        Assert.Contains("blocking disabled", debug);
+        Assert.Equal(FilterAction.Allow, result.Action);
+        Assert.Contains("blocking disabled", result.DebugSummary);
     }
 
     // --- Step 2: Client resolution (DoT client ID, exact IP, CIDR) ---
@@ -90,9 +90,9 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // Strict profile blocks games.com
-        Assert.False(svc.IsAllowed(MakeRequest("games.com"), EP("10.0.0.1"), "games.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("games.com"), EP("10.0.0.1"), "games.com").Action);
         // Relaxed profile allows games.com
-        Assert.True(svc.IsAllowed(MakeRequest("games.com"), EP("10.0.0.2"), "games.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("games.com"), EP("10.0.0.2"), "games.com").Action);
     }
 
     [Fact]
@@ -115,9 +115,9 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // 192.168.1.50 matches both CIDRs, but /24 is more specific
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("192.168.1.50"), "blocked.com", out var debug, out _);
-        Assert.False(allowed);
-        Assert.Contains("profile=narrow", debug);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("192.168.1.50"), "blocked.com");
+        Assert.Equal(FilterAction.Block, result.Action);
+        Assert.Contains("profile=narrow", result.DebugSummary);
     }
 
     // --- Step 3: Profile lookup (fallback to base profile) ---
@@ -137,8 +137,8 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // No client matches, no default profile, falls back to base
-        var allowed = svc.IsAllowed(MakeRequest("ads.com"), EP("10.0.0.1"), "ads.com", out _, out _);
-        Assert.False(allowed);
+        var result = svc.Evaluate(MakeRequest("ads.com"), EP("10.0.0.1"), "ads.com");
+        Assert.Equal(FilterAction.Block, result.Action);
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out _, out _);
-        Assert.True(allowed);
+        var result = svc.Evaluate(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com");
+        Assert.Equal(FilterAction.Allow, result.Action);
     }
 
     // --- Step 4: DNS rewrite matching ---
@@ -174,12 +174,12 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com", out var debug, out var rewrite);
+        var result = svc.Evaluate(MakeRequest("youtube.com"), EP("10.0.0.1"), "youtube.com");
 
-        Assert.False(allowed);
-        Assert.NotNull(rewrite);
-        Assert.Equal("restrict.youtube.com", rewrite.Answer);
-        Assert.Contains("REWRITE", debug);
+        Assert.Equal(FilterAction.Rewrite, result.Action);
+        Assert.NotNull(result.Rewrite);
+        Assert.Equal("restrict.youtube.com", result.Rewrite.Answer);
+        Assert.Contains("REWRITE", result.DebugSummary);
     }
 
     [Fact]
@@ -199,9 +199,9 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        var allowed = svc.IsAllowed(MakeRequest("www.youtube.com"), EP("10.0.0.1"), "www.youtube.com", out _, out var rewrite);
-        Assert.False(allowed);
-        Assert.NotNull(rewrite);
+        var result = svc.Evaluate(MakeRequest("www.youtube.com"), EP("10.0.0.1"), "www.youtube.com");
+        Assert.Equal(FilterAction.Rewrite, result.Action);
+        Assert.NotNull(result.Rewrite);
     }
 
     // --- Step 5: Allowlist check ---
@@ -225,12 +225,13 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // Blocked domain
-        Assert.False(svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("example.com"), EP("10.0.0.1"), "example.com").Action);
         // Allowlisted via @@-rule
-        Assert.True(svc.IsAllowed(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com", out var debug1, out _));
-        Assert.Contains("allowlisted", debug1);
+        var safeResult = svc.Evaluate(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com");
+        Assert.Equal(FilterAction.Allow, safeResult.Action);
+        Assert.Contains("allowlisted", safeResult.DebugSummary);
         // Allowlisted via allowList
-        Assert.True(svc.IsAllowed(MakeRequest("trusted.com"), EP("10.0.0.1"), "trusted.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("trusted.com"), EP("10.0.0.1"), "trusted.com").Action);
     }
 
     // --- Step 6: Schedule evaluation ---
@@ -265,8 +266,8 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // ScheduleAllDay=true overrides the narrow window for all days
-        var allowed = svc.IsAllowed(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com", out _, out _);
-        Assert.False(allowed);
+        var result = svc.Evaluate(MakeRequest("blocked.com"), EP("10.0.0.1"), "blocked.com");
+        Assert.Equal(FilterAction.Block, result.Action);
     }
 
     // --- Step 7: Blocklist check ---
@@ -285,10 +286,10 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        Assert.False(svc.IsAllowed(MakeRequest("malware.com"), EP("10.0.0.1"), "malware.com", out _, out _));
-        Assert.False(svc.IsAllowed(MakeRequest("ads.example.com"), EP("10.0.0.1"), "ads.example.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("malware.com"), EP("10.0.0.1"), "malware.com").Action);
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("ads.example.com"), EP("10.0.0.1"), "ads.example.com").Action);
         // Subdomain of blocked domain is also blocked
-        Assert.False(svc.IsAllowed(MakeRequest("sub.malware.com"), EP("10.0.0.1"), "sub.malware.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("sub.malware.com"), EP("10.0.0.1"), "sub.malware.com").Action);
     }
 
     [Fact]
@@ -309,8 +310,8 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        Assert.False(svc.IsAllowed(MakeRequest("service.example.com"), EP("10.0.0.1"), "service.example.com", out _, out _));
-        Assert.False(svc.IsAllowed(MakeRequest("api.service.example.com"), EP("10.0.0.1"), "api.service.example.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("service.example.com"), EP("10.0.0.1"), "service.example.com").Action);
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("api.service.example.com"), EP("10.0.0.1"), "api.service.example.com").Action);
     }
 
     // --- Step 8: Default allow ---
@@ -329,7 +330,7 @@ public class FullPipelineTests
         };
         var (svc, _) = CreateFullPipeline(config);
 
-        Assert.True(svc.IsAllowed(MakeRequest("allowed.com"), EP("10.0.0.1"), "allowed.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("allowed.com"), EP("10.0.0.1"), "allowed.com").Action);
     }
 
     // --- Cross-step priority tests ---
@@ -353,10 +354,10 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // Rewrite takes priority over allowlist and block
-        var allowed = svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out var debug, out var rewrite);
-        Assert.False(allowed);
-        Assert.NotNull(rewrite);
-        Assert.Contains("REWRITE", debug);
+        var result = svc.Evaluate(MakeRequest("example.com"), EP("10.0.0.1"), "example.com");
+        Assert.Equal(FilterAction.Rewrite, result.Action);
+        Assert.NotNull(result.Rewrite);
+        Assert.Contains("REWRITE", result.DebugSummary);
     }
 
     [Fact]
@@ -383,13 +384,13 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // Kids inherits base blocks
-        Assert.False(svc.IsAllowed(MakeRequest("ads.com"), EP("10.0.0.1"), "ads.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("ads.com"), EP("10.0.0.1"), "ads.com").Action);
         // Kids has its own blocks
-        Assert.False(svc.IsAllowed(MakeRequest("games.com"), EP("10.0.0.1"), "games.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("games.com"), EP("10.0.0.1"), "games.com").Action);
         // Kids inherits base allows
-        Assert.True(svc.IsAllowed(MakeRequest("safe.com"), EP("10.0.0.1"), "safe.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("safe.com"), EP("10.0.0.1"), "safe.com").Action);
         // Unblocked domains pass through
-        Assert.True(svc.IsAllowed(MakeRequest("wikipedia.org"), EP("10.0.0.1"), "wikipedia.org", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("wikipedia.org"), EP("10.0.0.1"), "wikipedia.org").Action);
     }
 
     [Fact]
@@ -446,29 +447,29 @@ public class FullPipelineTests
         var (svc, _) = CreateFullPipeline(config);
 
         // Kids: base blocks inherited
-        Assert.False(svc.IsAllowed(MakeRequest("malware.com"), EP("192.168.1.10"), "malware.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("malware.com"), EP("192.168.1.10"), "malware.com").Action);
         // Kids: service block
-        Assert.False(svc.IsAllowed(MakeRequest("facebook.com"), EP("192.168.1.10"), "facebook.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("facebook.com"), EP("192.168.1.10"), "facebook.com").Action);
         // Kids: custom rule block
-        Assert.False(svc.IsAllowed(MakeRequest("games.com"), EP("192.168.1.10"), "games.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("games.com"), EP("192.168.1.10"), "games.com").Action);
         // Kids: allowlist exception
-        Assert.True(svc.IsAllowed(MakeRequest("homework.games.com"), EP("192.168.1.10"), "homework.games.com", out _, out _));
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("homework.games.com"), EP("192.168.1.10"), "homework.games.com").Action);
         // Kids: rewrite
-        svc.IsAllowed(MakeRequest("youtube.com"), EP("192.168.1.10"), "youtube.com", out _, out var rewrite);
-        Assert.NotNull(rewrite);
-        Assert.Equal("restrict.youtube.com", rewrite.Answer);
+        var rwResult = svc.Evaluate(MakeRequest("youtube.com"), EP("192.168.1.10"), "youtube.com");
+        Assert.NotNull(rwResult.Rewrite);
+        Assert.Equal("restrict.youtube.com", rwResult.Rewrite.Answer);
 
         // Adults: base blocks inherited, but no own blocks
-        Assert.False(svc.IsAllowed(MakeRequest("malware.com"), EP("192.168.1.20"), "malware.com", out _, out _));
-        Assert.True(svc.IsAllowed(MakeRequest("facebook.com"), EP("192.168.1.20"), "facebook.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("malware.com"), EP("192.168.1.20"), "malware.com").Action);
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("facebook.com"), EP("192.168.1.20"), "facebook.com").Action);
 
         // Guests (CIDR match): base blocks + own blocks
-        Assert.False(svc.IsAllowed(MakeRequest("malware.com"), EP("192.168.2.50"), "malware.com", out _, out _));
-        Assert.False(svc.IsAllowed(MakeRequest("streaming.com"), EP("192.168.2.50"), "streaming.com", out _, out _));
-        Assert.True(svc.IsAllowed(MakeRequest("facebook.com"), EP("192.168.2.50"), "facebook.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("malware.com"), EP("192.168.2.50"), "malware.com").Action);
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("streaming.com"), EP("192.168.2.50"), "streaming.com").Action);
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("facebook.com"), EP("192.168.2.50"), "facebook.com").Action);
 
         // Unknown IP falls back to default-fallback: only base blocks
-        Assert.False(svc.IsAllowed(MakeRequest("malware.com"), EP("10.0.0.99"), "malware.com", out _, out _));
-        Assert.True(svc.IsAllowed(MakeRequest("facebook.com"), EP("10.0.0.99"), "facebook.com", out _, out _));
+        Assert.Equal(FilterAction.Block, svc.Evaluate(MakeRequest("malware.com"), EP("10.0.0.99"), "malware.com").Action);
+        Assert.Equal(FilterAction.Allow, svc.Evaluate(MakeRequest("facebook.com"), EP("10.0.0.99"), "facebook.com").Action);
     }
 }

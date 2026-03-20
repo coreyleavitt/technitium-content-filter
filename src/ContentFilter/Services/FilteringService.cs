@@ -47,22 +47,25 @@ public sealed class FilteringService
     }
 
     /// <summary>
-    /// Returns true if the query should be allowed, false if it should be blocked.
-    /// Also returns a rewrite config if the domain matches a rewrite rule.
+    /// Evaluates a DNS query and returns a structured FilterResult describing the
+    /// filtering decision, including block reason provenance for diagnostics.
     /// </summary>
-    public bool IsAllowed(DnsDatagram request, IPEndPoint remoteEP, string questionDomain,
-        out string debugInfo, out DnsRewriteConfig? rewrite)
+    public FilterResult Evaluate(DnsDatagram request, IPEndPoint remoteEP, string questionDomain)
     {
-        rewrite = null;
         try
         {
-            return IsAllowedCore(request, remoteEP, questionDomain, out debugInfo, out rewrite);
+            return EvaluateCore(request, remoteEP, questionDomain);
         }
         catch (Exception ex)
         {
             // A DNS filtering plugin must never crash the host server. Fail open.
-            debugInfo = $"ERROR: {ex.Message}";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = $"ERROR: {ex.Message}"
+            };
         }
     }
 
@@ -76,26 +79,25 @@ public sealed class FilteringService
         return DomainEvaluator.GetRewrite(rewrites, domain);
     }
 
-    private bool IsAllowedCore(DnsDatagram request, IPEndPoint remoteEP, string questionDomain,
-        out string debugInfo, out DnsRewriteConfig? rewrite)
+    private FilterResult EvaluateCore(DnsDatagram request, IPEndPoint remoteEP, string questionDomain)
     {
-        rewrite = null;
         var config = _configService.Config;
 
         // 1. Global kill switch
         if (!config.EnableBlocking)
         {
-            debugInfo = "blocking disabled";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = "blocking disabled"
+            };
         }
 
         // 2. Resolve client -> profile (#18: delegate to ClientResolver)
         var clientId = ClientResolver.ExtractClientId(request);
         var profileName = ClientResolver.ResolveProfile(config, clientId, remoteEP.Address);
-
-        // #22: Only build debugInfo string when we actually need it (lazy construction)
-        // Build minimal debug info upfront; append details only on interesting paths
-        string? lazyDebugPrefix = null;
 
         // 3. No profile -> use base profile if set
         if (profileName is null)
@@ -104,15 +106,28 @@ public sealed class FilteringService
                 profileName = config.BaseProfile;
             else
             {
-                debugInfo = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName);
-                return true;
+                return new FilterResult
+                {
+                    Action = FilterAction.Allow,
+                    ClientId = clientId,
+                    ClientIp = remoteEP.Address.ToString(),
+                    QuestionDomain = questionDomain,
+                    DebugSummary = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName)
+                };
             }
         }
 
         if (!config.Profiles.TryGetValue(profileName, out var profileConfig))
         {
-            debugInfo = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName) + " (profile not found)";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName) + " (profile not found)"
+            };
         }
 
         // Fail-open: if profile hasn't been compiled yet (e.g., during startup before
@@ -120,59 +135,127 @@ public sealed class FilteringService
         var compiled = _compiledProfiles;
         if (!compiled.TryGetValue(profileName, out var profile))
         {
-            debugInfo = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName) + " (not compiled)";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName) + " (not compiled)"
+            };
         }
 
-        lazyDebugPrefix = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName);
+        var debugPrefix = BuildDebugPrefix(questionDomain, clientId, remoteEP.Address, profileName);
 
         // 4. DNS Rewrite check (#18: delegate to DomainEvaluator)
         var rw = DomainEvaluator.GetRewrite(profile.Rewrites, questionDomain);
         if (rw is not null)
         {
-            rewrite = rw;
-            debugInfo = lazyDebugPrefix + $" REWRITE -> {rw.Answer}";
-            return false; // Signal that we handle this query (not a normal allow)
+            return new FilterResult
+            {
+                Action = FilterAction.Rewrite,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                Rewrite = rw,
+                DebugSummary = debugPrefix + $" REWRITE -> {rw.Answer}"
+            };
         }
 
         // 5. Allow list overrides everything (#18: delegate to DomainEvaluator)
         if (DomainEvaluator.IsAllowlisted(profile, questionDomain))
         {
-            debugInfo = lazyDebugPrefix + " (allowlisted)";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = debugPrefix + " (allowlisted)"
+            };
         }
 
         // 6. Regex allow rules (overrides domain blocks and regex blocks)
         if (DomainEvaluator.IsRegexAllowlisted(profile, questionDomain))
         {
-            debugInfo = lazyDebugPrefix + " (regex allowlisted)";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = debugPrefix + " (regex allowlisted)"
+            };
         }
 
         // 7. Schedule check (#18: delegate to ScheduleEvaluator)
         if (!ScheduleEvaluator.IsBlockingActiveNow(profileConfig, config.TimeZone, config.ScheduleAllDay))
         {
-            debugInfo = lazyDebugPrefix + " (outside schedule)";
-            return true;
+            return new FilterResult
+            {
+                Action = FilterAction.Allow,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                DebugSummary = debugPrefix + " (outside schedule)"
+            };
         }
 
         // 8. Blocked domains check (#18: delegate to DomainEvaluator)
-        if (DomainEvaluator.IsBlocked(profile, questionDomain))
+        var matchedDomain = DomainEvaluator.FindBlockedDomain(profile, questionDomain);
+        if (matchedDomain is not null)
         {
-            debugInfo = lazyDebugPrefix + " BLOCKED";
-            return false;
+            return new FilterResult
+            {
+                Action = FilterAction.Block,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                BlockReason = new BlockReason
+                {
+                    Source = BlockSource.DomainBlocklist,
+                    MatchedDomain = matchedDomain
+                },
+                DebugSummary = debugPrefix + " BLOCKED"
+            };
         }
 
         // 9. Regex block rules
-        if (DomainEvaluator.IsRegexBlocked(profile, questionDomain))
+        var matchedRegex = DomainEvaluator.FindBlockingRegex(profile, questionDomain);
+        if (matchedRegex is not null)
         {
-            debugInfo = lazyDebugPrefix + " BLOCKED (regex)";
-            return false;
+            return new FilterResult
+            {
+                Action = FilterAction.Block,
+                ProfileName = profileName,
+                ClientId = clientId,
+                ClientIp = remoteEP.Address.ToString(),
+                QuestionDomain = questionDomain,
+                BlockReason = new BlockReason
+                {
+                    Source = BlockSource.RegexBlocklist,
+                    MatchedRegex = matchedRegex
+                },
+                DebugSummary = debugPrefix + " BLOCKED (regex)"
+            };
         }
 
         // 10. No match -> allow
-        debugInfo = lazyDebugPrefix;
-        return true;
+        return new FilterResult
+        {
+            Action = FilterAction.Allow,
+            ProfileName = profileName,
+            ClientId = clientId,
+            ClientIp = remoteEP.Address.ToString(),
+            QuestionDomain = questionDomain,
+            DebugSummary = debugPrefix
+        };
     }
 
     /// <summary>

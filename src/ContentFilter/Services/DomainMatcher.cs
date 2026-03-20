@@ -7,11 +7,11 @@ namespace ContentFilter.Services;
 public static class DomainMatcher
 {
     /// <summary>
-    /// Returns true if the domain (or any parent) exists in the set.
-    /// #14: Uses string slicing instead of span.ToString() to reduce allocations.
-    /// #21: HashSet uses OrdinalIgnoreCase comparer (set at construction site).
+    /// Returns the matched domain string if the domain (or any parent) exists in the set,
+    /// or null if no match. The returned string is the actual entry that matched (may be
+    /// a parent domain due to subdomain walking).
     /// </summary>
-    public static bool Matches(HashSet<string> domains, string query)
+    public static string? FindMatch(HashSet<string> domains, string query)
     {
         // Trim trailing FQDN dot
         var trimmed = query.EndsWith('.') ? query[..^1] : query;
@@ -21,7 +21,7 @@ public static class DomainMatcher
         while (true)
         {
             if (domains.Contains(current))
-                return true;
+                return current;
 
             var dotIndex = current.IndexOf('.');
             if (dotIndex < 0 || dotIndex == current.Length - 1)
@@ -30,6 +30,16 @@ public static class DomainMatcher
             current = current[(dotIndex + 1)..];
         }
 
-        return false;
+        return null;
+    }
+
+    /// <summary>
+    /// Returns true if the domain (or any parent) exists in the set.
+    /// #14: Uses string slicing instead of span.ToString() to reduce allocations.
+    /// #21: HashSet uses OrdinalIgnoreCase comparer (set at construction site).
+    /// </summary>
+    public static bool Matches(HashSet<string> domains, string query)
+    {
+        return FindMatch(domains, query) is not null;
     }
 }

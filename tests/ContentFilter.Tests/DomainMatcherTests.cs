@@ -42,4 +42,51 @@ public class DomainMatcherTests
         Assert.True(DomainMatcher.Matches(set, "tiktok.com"));
         Assert.False(DomainMatcher.Matches(set, "google.com"));
     }
+
+    // --- FindMatch tests ---
+
+    [Fact]
+    public void FindMatch_ExactMatch_ReturnsMatch()
+    {
+        var set = Domains("example.com");
+        var match = DomainMatcher.FindMatch(set, "example.com");
+        Assert.Equal("example.com", match);
+    }
+
+    [Fact]
+    public void FindMatch_ParentMatch_ReturnsParent()
+    {
+        var set = Domains("example.com");
+        var match = DomainMatcher.FindMatch(set, "sub.deep.example.com");
+        Assert.Equal("example.com", match);
+    }
+
+    [Fact]
+    public void FindMatch_NoMatch_ReturnsNull()
+    {
+        var set = Domains("example.com");
+        Assert.Null(DomainMatcher.FindMatch(set, "other.com"));
+    }
+
+    [Fact]
+    public void FindMatch_TrailingDot_ReturnsMatch()
+    {
+        var set = Domains("example.com");
+        var match = DomainMatcher.FindMatch(set, "example.com.");
+        Assert.Equal("example.com", match);
+    }
+
+    [Fact]
+    public void FindMatch_CaseInsensitive_ReturnsMatch()
+    {
+        var set = Domains("Example.COM");
+        var match = DomainMatcher.FindMatch(set, "www.example.com");
+        Assert.NotNull(match);
+    }
+
+    [Fact]
+    public void FindMatch_EmptySet_ReturnsNull()
+    {
+        Assert.Null(DomainMatcher.FindMatch(Domains(), "example.com"));
+    }
 }

@@ -4,6 +4,7 @@ using DnsServerCore.ApplicationCommon;
 using ContentFilter.Models;
 using ContentFilter.Services;
 using TechnitiumLibrary.Net.Dns;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace ContentFilter;
@@ -19,10 +20,10 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
     /// <summary>Initial delay before first blocklist refresh in seconds.</summary>
     internal const int InitialDelaySeconds = 5;
 
-    /// <summary>Timeout in seconds after which pending rewrite entries are considered stale (#9).</summary>
-    private const int PendingRewriteTimeoutSeconds = 30;
+    /// <summary>Timeout in seconds after which pending entries are considered stale (#9).</summary>
+    private const int PendingEntryTimeoutSeconds = 30;
 
-    /// <summary>Interval in seconds for cleaning up stale pending rewrite entries.</summary>
+    /// <summary>Interval in seconds for cleaning up stale pending entries.</summary>
     private const int CleanupIntervalSeconds = 10;
 
     private IDnsServer _dnsServer = null!;
@@ -38,6 +39,7 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
     // #8: Use composite key (requestId + client IP) instead of just 16-bit request ID
     // to avoid collision risk. #9: Include timestamp for TTL-based expiration.
     private readonly ConcurrentDictionary<string, PendingRewrite> _pendingRewrites = new();
+    private readonly ConcurrentDictionary<string, PendingBlock> _pendingBlocks = new();
 
     private DateTime? _lastBlockListRefresh;
 
@@ -79,11 +81,11 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
             _ = RefreshBlockListsAsync(ct);
         }, null, TimeSpan.FromSeconds(InitialDelaySeconds), TimeSpan.FromMinutes(RefreshIntervalMinutes));
 
-        // #9: Periodic cleanup of stale pending rewrite entries
+        // #9: Periodic cleanup of stale pending entries
         _cleanupTimer = new Timer(_ =>
         {
             if (ct.IsCancellationRequested) return;
-            CleanupStalePendingRewrites();
+            CleanupStalePendingEntries();
         }, null, TimeSpan.FromSeconds(CleanupIntervalSeconds), TimeSpan.FromSeconds(CleanupIntervalSeconds));
 
         _dnsServer.WriteLog("ContentFilter initialized.");
@@ -96,45 +98,43 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
             return Task.FromResult(true);
 
         var domain = request.Question[0].Name;
-        var allowed = _filteringService.IsAllowed(request, remoteEP, domain, out var debugInfo, out var rewrite);
+        var result = _filteringService.Evaluate(request, remoteEP, domain);
 
-        if (rewrite is not null)
+        switch (result.Action)
         {
-            // #8: Use composite key for pending rewrites
-            var key = MakePendingKey(request.Identifier, remoteEP.Address);
-            _pendingRewrites[key] = new PendingRewrite(rewrite, DateTime.UtcNow);
-            _dnsServer.WriteLog($"ContentFilter: REWRITE {domain} -> {rewrite.Answer} | {debugInfo}");
-            return Task.FromResult(false);
+            case FilterAction.Rewrite:
+            {
+                var key = MakePendingKey(request.Identifier, remoteEP.Address);
+                _pendingRewrites[key] = new PendingRewrite(result.Rewrite!, DateTime.UtcNow);
+                _dnsServer.WriteLog($"ContentFilter: REWRITE {domain} -> {result.Rewrite!.Answer} | {result.DebugSummary}");
+                return Task.FromResult(false);
+            }
+            case FilterAction.Block:
+            {
+                var key = MakePendingKey(request.Identifier, remoteEP.Address);
+                _pendingBlocks[key] = new PendingBlock(result, DateTime.UtcNow);
+                _dnsServer.WriteLog($"ContentFilter: BLOCKED {domain} | {result.DebugSummary}");
+                return Task.FromResult(false);
+            }
+            default:
+                return Task.FromResult(true);
         }
-
-        if (!allowed)
-            _dnsServer.WriteLog($"ContentFilter: BLOCKED {domain} | {debugInfo}");
-
-        return Task.FromResult(allowed);
     }
 
     public Task<DnsDatagram> ProcessRequestAsync(DnsDatagram request, IPEndPoint remoteEP)
     {
-        // #8: Use composite key for pending rewrite lookup
+        // #8: Use composite key for pending lookup
         var key = MakePendingKey(request.Identifier, remoteEP.Address);
-        if (_pendingRewrites.TryRemove(key, out var pending))
+
+        // Check pending rewrites first
+        if (_pendingRewrites.TryRemove(key, out var pendingRewrite))
         {
-            return Task.FromResult(BuildRewriteResponse(request, pending.Rewrite));
+            return Task.FromResult(BuildRewriteResponse(request, pendingRewrite.Rewrite));
         }
 
-        // Default: NxDomain for blocked queries
-        return Task.FromResult(new DnsDatagram(
-            request.Identifier,
-            true,
-            request.OPCODE,
-            true,
-            false,
-            request.RecursionDesired,
-            true,
-            false,
-            false,
-            DnsResponseCode.NxDomain,
-            request.Question));
+        // Check pending blocks for diagnostic response
+        _pendingBlocks.TryRemove(key, out var pendingBlock);
+        return Task.FromResult(BuildBlockResponse(request, pendingBlock?.Result));
     }
 
     /// <summary>
@@ -148,8 +148,68 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
             LoadedProfileCount = _filteringService?.CompiledProfileCount ?? 0,
             LastBlockListRefresh = _lastBlockListRefresh,
             BlockListStatuses = _blockListManager?.GetAllStatus() ?? new Dictionary<string, BlockListStatus>(),
-            PendingRewriteCount = _pendingRewrites.Count
+            PendingRewriteCount = _pendingRewrites.Count,
+            PendingBlockCount = _pendingBlocks.Count
         };
+    }
+
+    internal DnsDatagram BuildBlockResponse(DnsDatagram request, FilterResult? result)
+    {
+        var config = _configService.Config;
+        string? report = null;
+
+        if (config.AllowTxtBlockingReport && result?.BlockReason is not null)
+        {
+            report = BuildBlockingReport(result);
+        }
+
+        // TXT query + report -> NoError with TXT answer
+        if (report is not null && request.Question.Count > 0
+            && request.Question[0].Type == DnsResourceRecordType.TXT)
+        {
+            var question = request.Question[0];
+            var txtRecord = new DnsResourceRecord(
+                question.Name, DnsResourceRecordType.TXT, DnsClass.IN,
+                DefaultTtlSeconds, new DnsTXTRecordData(report));
+
+            return new DnsDatagram(
+                request.Identifier, true, DnsOpcode.StandardQuery, false, false,
+                request.RecursionDesired, true, false, false,
+                DnsResponseCode.NoError, request.Question, new[] { txtRecord });
+        }
+
+        // Non-TXT + EDNS client + report -> NXDOMAIN with EDE code 15
+        if (report is not null && request.EDNS is not null)
+        {
+            var edeOption = new EDnsOption(
+                EDnsOptionCode.EXTENDED_DNS_ERROR,
+                new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.Blocked, report));
+
+            return new DnsDatagram(
+                request.Identifier, true, DnsOpcode.StandardQuery, false, false,
+                request.RecursionDesired, true, false, false,
+                DnsResponseCode.NxDomain, request.Question,
+                null, null, null,
+                _dnsServer.UdpPayloadSize, EDnsHeaderFlags.None, new[] { edeOption });
+        }
+
+        // Default: plain NXDOMAIN
+        return new DnsDatagram(
+            request.Identifier, true, request.OPCODE, true, false,
+            request.RecursionDesired, true, false, false,
+            DnsResponseCode.NxDomain, request.Question);
+    }
+
+    private static string BuildBlockingReport(FilterResult result)
+    {
+        var report = $"source=content-filter; domain={result.QuestionDomain}; profile={result.ProfileName}";
+
+        if (result.BlockReason!.Source == BlockSource.DomainBlocklist)
+            report += $"; matchedDomain={result.BlockReason.MatchedDomain}";
+        else
+            report += $"; regex={result.BlockReason.MatchedRegex}";
+
+        return report;
     }
 
     private static DnsDatagram BuildRewriteResponse(DnsDatagram request, DnsRewriteConfig rewrite)
@@ -244,16 +304,23 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
     }
 
     /// <summary>
-    /// #9: Remove pending rewrite entries that are older than the timeout threshold.
+    /// #9: Remove pending entries that are older than the timeout threshold.
     /// </summary>
-    private void CleanupStalePendingRewrites()
+    private void CleanupStalePendingEntries()
     {
-        var cutoff = DateTime.UtcNow.AddSeconds(-PendingRewriteTimeoutSeconds);
+        var cutoff = DateTime.UtcNow.AddSeconds(-PendingEntryTimeoutSeconds);
         foreach (var kvp in _pendingRewrites)
         {
             if (kvp.Value.CreatedUtc < cutoff)
             {
                 _pendingRewrites.TryRemove(kvp.Key, out _);
+            }
+        }
+        foreach (var kvp in _pendingBlocks)
+        {
+            if (kvp.Value.CreatedUtc < cutoff)
+            {
+                _pendingBlocks.TryRemove(kvp.Key, out _);
             }
         }
     }
@@ -281,6 +348,7 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
         cts?.Dispose();
     }
 
-    // #9: Internal record to track creation time of pending rewrites
+    // #9: Internal records to track creation time of pending entries
     private sealed record PendingRewrite(DnsRewriteConfig Rewrite, DateTime CreatedUtc);
+    private sealed record PendingBlock(FilterResult Result, DateTime CreatedUtc);
 }
