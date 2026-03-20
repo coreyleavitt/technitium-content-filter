@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using ContentFilter.Models;
 using ContentFilter.Services;
 using TechnitiumLibrary.Net.Dns;
@@ -403,6 +404,164 @@ public class IsAllowedCoreTests
 
         // Unblocked domain passes through
         Assert.True(svc.IsAllowed(MakeRequest("wikipedia.org"), EP("10.0.0.1"), "wikipedia.org", out _, out _));
+    }
+
+    // Step 9: Regex block rule blocks matching domain
+    [Fact]
+    public void RegexBlockRule_BlocksMatchingDomain()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        var blockedRegexes = RegexCompiler.Compile(new List<string> { @"^ads?\d*\." });
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                blockedRegexes: blockedRegexes)
+        };
+        var svc = CreateService(config, compiled);
+
+        Assert.False(svc.IsAllowed(MakeRequest("ad.example.com"), EP("10.0.0.1"), "ad.example.com", out var debug, out _));
+        Assert.Contains("BLOCKED (regex)", debug);
+
+        Assert.False(svc.IsAllowed(MakeRequest("ads123.tracker.net"), EP("10.0.0.1"), "ads123.tracker.net", out _, out _));
+    }
+
+    // Regex allow overrides domain block
+    [Fact]
+    public void RegexAllowRule_OverridesDomainBlock()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        var allowedRegexes = RegexCompiler.Compile(new List<string> { @"safe\.example\.com" });
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" },
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                allowedRegexes: allowedRegexes)
+        };
+        var svc = CreateService(config, compiled);
+
+        var allowed = svc.IsAllowed(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com", out var debug, out _);
+
+        Assert.True(allowed);
+        Assert.Contains("regex allowlisted", debug);
+    }
+
+    // Regex allow overrides regex block
+    [Fact]
+    public void RegexAllowRule_OverridesRegexBlock()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        var blockedRegexes = RegexCompiler.Compile(new List<string> { @"\.example\.com$" });
+        var allowedRegexes = RegexCompiler.Compile(new List<string> { @"^safe\." });
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                blockedRegexes: blockedRegexes,
+                allowedRegexes: allowedRegexes)
+        };
+        var svc = CreateService(config, compiled);
+
+        // safe.example.com matches both regex allow and regex block -- allow wins (evaluated first)
+        Assert.True(svc.IsAllowed(MakeRequest("safe.example.com"), EP("10.0.0.1"), "safe.example.com", out var debug, out _));
+        Assert.Contains("regex allowlisted", debug);
+
+        // bad.example.com only matches regex block
+        Assert.False(svc.IsAllowed(MakeRequest("bad.example.com"), EP("10.0.0.1"), "bad.example.com", out _, out _));
+    }
+
+    // Domain allow overrides regex block
+    [Fact]
+    public void DomainAllow_OverridesRegexBlock()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        var blockedRegexes = RegexCompiler.Compile(new List<string> { @"example\.com" });
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" },
+                blockedRegexes: blockedRegexes)
+        };
+        var svc = CreateService(config, compiled);
+
+        var allowed = svc.IsAllowed(MakeRequest("example.com"), EP("10.0.0.1"), "example.com", out var debug, out _);
+
+        Assert.True(allowed);
+        Assert.Contains("allowlisted", debug);
+    }
+
+    // Regex timeout treated as no-match (fail-open)
+    [Fact]
+    public void RegexTimeout_TreatedAsNoMatch()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        // Pattern known to cause catastrophic backtracking
+        var blockedRegexes = RegexCompiler.Compile(new List<string> { @"^(a+)+b" });
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                blockedRegexes: blockedRegexes)
+        };
+        var svc = CreateService(config, compiled);
+
+        // Domain with many 'a's that causes backtracking against ^(a+)+b pattern
+        // Use a valid domain name format that still triggers the issue
+        var evilDomain = new string('a', 25) + ".com";
+        var allowed = svc.IsAllowed(MakeRequest(evilDomain), EP("10.0.0.1"), evilDomain, out _, out _);
+
+        Assert.True(allowed);
+    }
+
+    // No regex rules -> domain passes through to default allow
+    [Fact]
+    public void NoRegexRules_DefaultAllow()
+    {
+        var config = new AppConfig
+        {
+            EnableBlocking = true,
+            DefaultProfile = "kids",
+            Profiles = { ["kids"] = new ProfileConfig() }
+        };
+        var compiled = new Dictionary<string, CompiledProfile>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["kids"] = new(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase))
+        };
+        var svc = CreateService(config, compiled);
+
+        Assert.True(svc.IsAllowed(MakeRequest("anything.com"), EP("10.0.0.1"), "anything.com", out _, out _));
     }
 
     // Client IP resolves to correct profile

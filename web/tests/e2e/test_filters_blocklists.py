@@ -163,6 +163,62 @@ class TestBlocklistRefresh:
         )
 
 
+class TestBlocklistType:
+    def test_type_badge_domain(self, page, live_server):
+        """Default blocklist shows Domain badge."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+        table = page.locator("#blocklistsList")
+        assert table.get_by_text("Domain", exact=True).is_visible()
+
+    def test_add_regex_blocklist_shows_badge(self, page, live_server, config_path):
+        """Adding a regex blocklist shows Regex badge."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+
+        page.get_by_role("button", name="Add Blocklist").click()
+        page.locator("#blocklistModal").wait_for(state="visible")
+
+        page.locator("#blType").select_option("regex")
+        page.locator("#blName").fill("Regex Patterns")
+        page.locator("#blUrl").fill("https://regex.example.com/patterns.txt")
+
+        with page.expect_navigation():
+            page.locator("#blocklistForm button[type='submit']").click()
+
+        assert page.get_by_text("Regex", exact=True).is_visible()
+
+        config = read_config(config_path)
+        added = next(
+            bl for bl in config["blockLists"]
+            if bl["url"] == "https://regex.example.com/patterns.txt"
+        )
+        assert added["type"] == "regex"
+
+    def test_type_dropdown_in_modal(self, page, live_server):
+        """Type dropdown visible when adding a new blocklist."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+
+        page.get_by_role("button", name="Add Blocklist").click()
+        page.locator("#blocklistModal").wait_for(state="visible")
+
+        type_select = page.locator("#blType")
+        assert type_select.is_visible()
+        assert not type_select.is_disabled()
+
+    def test_type_disabled_on_edit(self, page, live_server):
+        """Type dropdown is disabled when editing an existing blocklist."""
+        page.goto(f"{live_server}/filters/blocklists")
+        page.locator("#blocklistsList").wait_for()
+
+        page.locator("#blocklistsList button:has-text('Edit')").first.click()
+        page.locator("#blocklistModal").wait_for(state="visible")
+
+        type_select = page.locator("#blType")
+        assert type_select.is_disabled()
+
+
 class TestBlocklistModal:
     def test_modal_opens_and_closes(self, page, live_server):
         """Modal can be opened and cancelled."""

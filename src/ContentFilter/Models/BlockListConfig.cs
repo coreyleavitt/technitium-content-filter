@@ -15,4 +15,7 @@ public sealed class BlockListConfig
 
     [JsonPropertyName("refreshHours")]
     public int RefreshHours { get; set; } = 24;
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "domain";
 }

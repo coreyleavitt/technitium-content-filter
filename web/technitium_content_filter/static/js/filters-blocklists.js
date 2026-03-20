@@ -11,6 +11,7 @@ const blNameEl = document.getElementById('blName');
 const blUrlEl = document.getElementById('blUrl');
 const blEnabledEl = document.getElementById('blEnabled');
 const blRefreshHoursEl = document.getElementById('blRefreshHours');
+const blTypeEl = document.getElementById('blType');
 const blocklistFormEl = document.getElementById('blocklistForm');
 const refreshBtnEl = document.getElementById('refreshBtn');
 
@@ -23,6 +24,7 @@ function renderBlocklists() {
     let html = '<div class="bg-white shadow rounded-lg overflow-hidden"><table class="min-w-full divide-y divide-gray-200">' +
         '<thead class="bg-gray-50"><tr>' +
         '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>' +
+        '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>' +
         '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>' +
         '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>' +
         '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profiles</th>' +
@@ -41,9 +43,15 @@ function renderBlocklists() {
             : '<span class="text-xs text-gray-400">None</span>';
 
         // #85: Toggle button for enabled/disabled
+        const blType = bl.type || 'domain';
+        const typeBadgeClass = blType === 'regex'
+            ? 'bg-purple-100 text-purple-800'
+            : 'bg-green-100 text-green-800';
+        const typeBadgeText = blType === 'regex' ? 'Regex' : 'Domain';
         const toggleLabel = bl.enabled ? 'Disable' : 'Enable';
         html += '<tr>' +
             '<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' + escapeHtml(bl.name || '--') + '</td>' +
+            '<td class="px-6 py-4 whitespace-nowrap"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ' + typeBadgeClass + '">' + typeBadgeText + '</span></td>' +
             '<td class="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs truncate">' + escapeHtml(bl.url) + '</td>' +
             '<td class="px-6 py-4 whitespace-nowrap text-xs ' + enabledClass + '">' +
             '<button data-toggle-bl="' + escapeHtml(bl.url) + '" class="hover:underline">' + enabledText + '</button>' +
@@ -79,6 +87,8 @@ function openBlocklistModal(url) {
     blNameEl.value = bl?.name || '';
     blUrlEl.value = bl?.url || '';
     blUrlEl.readOnly = !!bl;
+    blTypeEl.value = bl?.type || 'domain';
+    blTypeEl.disabled = !!bl;
     blEnabledEl.checked = bl?.enabled !== false;
     blRefreshHoursEl.value = bl?.refreshHours || 24;
     blocklistModalEl.classList.remove('hidden');
@@ -110,6 +120,7 @@ async function toggleBlocklist(url) {
             name: bl.name,
             enabled: newEnabled,
             refreshHours: bl.refreshHours || 24,
+            type: bl.type || 'domain',
         });
         bl.enabled = newEnabled;
         renderBlocklists();
@@ -159,6 +170,7 @@ blocklistFormEl.addEventListener('submit', async function handleBlocklistSubmit(
             name: blNameEl.value.trim(),
             enabled: blEnabledEl.checked,
             refreshHours: parseInt(blRefreshHoursEl.value) || 24,
+            type: blTypeEl.value,
         });
         location.reload();
     } catch (err) {

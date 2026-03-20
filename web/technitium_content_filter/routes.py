@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -217,6 +218,11 @@ async def filters_services_page(request: Request) -> HTMLResponse:
 async def filters_rules_page(request: Request) -> HTMLResponse:
     cfg = config.load_config()
     return render("filters_rules.html", current="filters-rules", config=cfg)
+
+
+async def filters_regex_page(request: Request) -> HTMLResponse:
+    cfg = config.load_config()
+    return render("filters_regex.html", current="filters-regex", config=cfg)
 
 
 async def filters_rewrites_page(request: Request) -> HTMLResponse:
@@ -478,6 +484,9 @@ def _validate_blocklist_url(url: str) -> str | None:
     return None
 
 
+_VALID_BLOCKLIST_TYPES = {"domain", "regex"}
+
+
 async def api_blocklist_save(request: Request) -> JSONResponse:
     data = _validate_json_obj(await request.json())
     url = _as_str(data.get("url", "")).strip()
@@ -487,6 +496,14 @@ async def api_blocklist_save(request: Request) -> JSONResponse:
     url_error = _validate_blocklist_url(url)
     if url_error:
         return JSONResponse({"ok": False, "error": url_error}, status_code=400)
+
+    bl_type = _as_str(data.get("type", "domain")).strip()
+    if bl_type not in _VALID_BLOCKLIST_TYPES:
+        valid = sorted(_VALID_BLOCKLIST_TYPES)
+        return JSONResponse(
+            {"ok": False, "error": f"Invalid type: must be one of {valid}"},
+            status_code=400,
+        )
 
     async with config.config_lock:
         cfg = config.load_config()
@@ -498,6 +515,7 @@ async def api_blocklist_save(request: Request) -> JSONResponse:
                 bl_val["name"] = data.get("name", "")
                 bl_val["enabled"] = data.get("enabled", True)
                 bl_val["refreshHours"] = data.get("refreshHours", 24)
+                bl_val["type"] = bl_type
                 break
         else:
             blocklists.append(
@@ -506,6 +524,7 @@ async def api_blocklist_save(request: Request) -> JSONResponse:
                     "name": data.get("name", ""),
                     "enabled": data.get("enabled", True),
                     "refreshHours": data.get("refreshHours", 24),
+                    "type": bl_type,
                 }
             )
 
@@ -593,6 +612,49 @@ async def api_rules_save(request: Request) -> JSONResponse:
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         profile["customRules"] = data.get("rules", [])
+        try:
+            config.save_config(cfg)
+        except OSError as exc:
+            return JSONResponse(
+                {"ok": False, "error": f"Failed to save config: {exc}"},
+                status_code=500,
+            )
+        await config.reload_technitium_config(cfg)
+    return JSONResponse({"ok": True})
+
+
+async def api_regex_rules_save(request: Request) -> JSONResponse:
+    data = _validate_json_obj(await request.json())
+    async with config.config_lock:
+        cfg = config.load_config()
+        profile = _get_profile(cfg, data)
+        if profile is None:
+            return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
+        block_rules = data.get("regexBlockRules", [])
+        allow_rules = data.get("regexAllowRules", [])
+        if not isinstance(block_rules, list) or not isinstance(allow_rules, list):
+            return JSONResponse(
+                {"ok": False, "error": "regexBlockRules and regexAllowRules must be lists"},
+                status_code=400,
+            )
+        # Validate each pattern at save time
+        for pattern in block_rules + allow_rules:
+            if not isinstance(pattern, str):
+                return JSONResponse(
+                    {"ok": False, "error": "All patterns must be strings"}, status_code=400
+                )
+            trimmed = pattern.strip()
+            if not trimmed or trimmed.startswith("#"):
+                continue
+            try:
+                re.compile(trimmed)
+            except re.error as exc:
+                return JSONResponse(
+                    {"ok": False, "error": f"Invalid regex pattern '{trimmed}': {exc}"},
+                    status_code=400,
+                )
+        profile["regexBlockRules"] = block_rules
+        profile["regexAllowRules"] = allow_rules
         try:
             config.save_config(cfg)
         except OSError as exc:
@@ -915,7 +977,44 @@ async def api_test_domain(request: Request) -> JSONResponse:
         }
     )
 
-    # Step 6: Schedule check
+    # Step 6: Regex allow check
+    regex_allow_patterns: list[str] = []
+    for src in [profile, base_profile]:
+        if src and isinstance(src, dict):
+            for p in _as_list(src.get("regexAllowRules") or []):
+                p_str = _as_str(p).strip()
+                if p_str and not p_str.startswith("#"):
+                    regex_allow_patterns.append(p_str)
+    regex_allow_match = filtering._regex_matches(regex_allow_patterns, domain)
+    if regex_allow_match:
+        steps.append(
+            {
+                "step": "Regex allow",
+                "result": "ALLOW",
+                "detail": f"Domain matches regex allow pattern: {regex_allow_match}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "ALLOW",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
+    steps.append(
+        {
+            "step": "Regex allow",
+            "result": "PASS",
+            "detail": (
+                f"No regex allow match ({len(regex_allow_patterns)} pattern"
+                f"{'s' if len(regex_allow_patterns) != 1 else ''} checked)"
+            ),
+        }
+    )
+
+    # Step 7: Schedule check
     schedule_active, schedule_detail = filtering._check_schedule_active(profile, cfg)
     if not schedule_active:
         steps.append(
@@ -942,7 +1041,7 @@ async def api_test_domain(request: Request) -> JSONResponse:
         }
     )
 
-    # Step 7: Build blocked domains (services + custom rules)
+    # Step 8: Build blocked domains (services + custom rules)
     blocked: set[str] = set()
     blocklist_urls: list[str] = []
 
@@ -1008,7 +1107,61 @@ async def api_test_domain(request: Request) -> JSONResponse:
         }
     )
 
-    # Step 8: Default allow
+    # Step 9: Regex block check
+    regex_block_patterns: list[str] = []
+    regex_blocklist_urls: list[str] = []
+    global_blocklists = _as_list(cfg.get("blockLists") or [])
+    regex_bl_urls_set: set[str] = set()
+    for bl_item in global_blocklists:
+        if isinstance(bl_item, dict) and bl_item.get("type") == "regex" and bl_item.get("enabled"):
+            regex_bl_urls_set.add(_as_str(bl_item.get("url", "")))
+    for src in [profile, base_profile]:
+        if src and isinstance(src, dict):
+            for p in _as_list(src.get("regexBlockRules") or []):
+                p_str = _as_str(p).strip()
+                if p_str and not p_str.startswith("#"):
+                    regex_block_patterns.append(p_str)
+            for bl_url in _as_list(src.get("blockLists") or []):
+                bl_url_str = _as_str(bl_url)
+                if bl_url_str in regex_bl_urls_set and bl_url_str not in regex_blocklist_urls:
+                    regex_blocklist_urls.append(bl_url_str)
+    regex_block_match = filtering._regex_matches(regex_block_patterns, domain)
+    if regex_block_match:
+        steps.append(
+            {
+                "step": "Regex block",
+                "result": "BLOCK",
+                "detail": f"Domain matches regex block pattern: {regex_block_match}",
+            }
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "verdict": "BLOCK",
+                "profile": profile_name,
+                "rewriteAnswer": None,
+                "steps": steps,
+            }
+        )
+
+    regex_bl_note = ""
+    if regex_blocklist_urls:
+        regex_bl_note = (
+            f" Note: {len(regex_blocklist_urls)} remote regex blocklist(s) assigned but"
+            " not checked (only available in DNS plugin memory)"
+        )
+    steps.append(
+        {
+            "step": "Regex block",
+            "result": "PASS",
+            "detail": (
+                f"No regex block match ({len(regex_block_patterns)} inline pattern"
+                f"{'s' if len(regex_block_patterns) != 1 else ''} checked).{regex_bl_note}"
+            ),
+        }
+    )
+
+    # Step 10: Default allow
     steps.append(
         {
             "step": "Default",

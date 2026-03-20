@@ -8,15 +8,17 @@ namespace ContentFilter.Services;
 /// Core filtering logic: determines whether a DNS query from a given client
 /// should be blocked based on compiled profile domain sets and schedule.
 ///
-/// Evaluation order:
+/// Evaluation order (10 steps):
 /// 1. Blocking disabled globally? -> ALLOW
 /// 2. Resolve client -> profile
 /// 3. No profile? -> use base profile only (if set)
 /// 4. Domain matches rewrite? (profile + base rewrites) -> REWRITE
-/// 5. Domain in profile's AllowedDomains? -> ALLOW (overrides base blocks)
-/// 6. Schedule inactive? -> ALLOW
-/// 7. Domain in merged BlockedDomains? (profile + base) -> BLOCK
-/// 8. -> ALLOW (no match)
+/// 5. Domain in profile's AllowedDomains? -> ALLOW
+/// 6. Domain matches regex allow rules? -> ALLOW
+/// 7. Schedule inactive? -> ALLOW
+/// 8. Domain in merged BlockedDomains? -> BLOCK
+/// 9. Domain matches regex block rules? -> BLOCK
+/// 10. -> ALLOW (no match)
 ///
 /// Delegates to ClientResolver, ScheduleEvaluator, and DomainEvaluator (#18).
 /// </summary>
@@ -140,21 +142,35 @@ public sealed class FilteringService
             return true;
         }
 
-        // 6. Schedule check (#18: delegate to ScheduleEvaluator)
+        // 6. Regex allow rules (overrides domain blocks and regex blocks)
+        if (DomainEvaluator.IsRegexAllowlisted(profile, questionDomain))
+        {
+            debugInfo = lazyDebugPrefix + " (regex allowlisted)";
+            return true;
+        }
+
+        // 7. Schedule check (#18: delegate to ScheduleEvaluator)
         if (!ScheduleEvaluator.IsBlockingActiveNow(profileConfig, config.TimeZone, config.ScheduleAllDay))
         {
             debugInfo = lazyDebugPrefix + " (outside schedule)";
             return true;
         }
 
-        // 7. Blocked domains check (#18: delegate to DomainEvaluator)
+        // 8. Blocked domains check (#18: delegate to DomainEvaluator)
         if (DomainEvaluator.IsBlocked(profile, questionDomain))
         {
             debugInfo = lazyDebugPrefix + " BLOCKED";
             return false;
         }
 
-        // 8. No match -> allow
+        // 9. Regex block rules
+        if (DomainEvaluator.IsRegexBlocked(profile, questionDomain))
+        {
+            debugInfo = lazyDebugPrefix + " BLOCKED (regex)";
+            return false;
+        }
+
+        // 10. No match -> allow
         debugInfo = lazyDebugPrefix;
         return true;
     }

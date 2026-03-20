@@ -93,6 +93,12 @@ public class BlockListManagerTests : IDisposable
         // Only one failure log (not two), proving dedup worked
         Assert.Single(_logs.Where(l => l.Contains("failed to refresh")));
     }
+
+    [Fact]
+    public void GetPatterns_UnknownUrl_ReturnsNull()
+    {
+        Assert.Null(_manager.GetPatterns("https://example.com/nonexistent.txt"));
+    }
 }
 
 [Trait("Category", "Unit")]
@@ -273,5 +279,73 @@ public class BlockListParseFileTests
         var parsed = Parse("valid.example.com\n", msg => logs.Add(msg));
         Assert.Single(parsed);
         Assert.Empty(logs);
+    }
+}
+
+[Trait("Category", "Unit")]
+public class BlockListParsePatternFileTests
+{
+    private readonly string _tempDir;
+
+    public BlockListParsePatternFileTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "pattern-test-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    private List<string> ParsePatterns(string content, Action<string>? log = null)
+    {
+        var path = Path.Combine(_tempDir, $"test-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(path, content);
+        return BlockListManager.ParsePatternFile(path, log);
+    }
+
+    [Fact]
+    public void CommentsSkipped()
+    {
+        var patterns = ParsePatterns("# comment\n! another comment\n^ads\\.\n");
+        Assert.Single(patterns);
+        Assert.Equal(@"^ads\.", patterns[0]);
+    }
+
+    [Fact]
+    public void BlankLinesSkipped()
+    {
+        var patterns = ParsePatterns("\n\n^ads\\.\n\n\n");
+        Assert.Single(patterns);
+    }
+
+    [Fact]
+    public void WhitespaceTrimmed()
+    {
+        var patterns = ParsePatterns("  ^ads\\.  \n");
+        Assert.Single(patterns);
+        Assert.Equal(@"^ads\.", patterns[0]);
+    }
+
+    [Fact]
+    public void ValidPatternsPreserved()
+    {
+        var patterns = ParsePatterns("^ads?\\d*\\.\ntracking\\.\n.*\\.evil\\.com$\n");
+        Assert.Equal(3, patterns.Count);
+        Assert.Equal(@"^ads?\d*\.", patterns[0]);
+        Assert.Equal(@"tracking\.", patterns[1]);
+        Assert.Equal(@".*\.evil\.com$", patterns[2]);
+    }
+
+    [Fact]
+    public void EmptyFile_ReturnsEmptyList()
+    {
+        var patterns = ParsePatterns("");
+        Assert.Empty(patterns);
+    }
+
+    [Fact]
+    public void InvalidRegexNotRejected()
+    {
+        // ParsePatternFile does NOT validate syntax -- that's RegexCompiler's job
+        var patterns = ParsePatterns("[invalid\n");
+        Assert.Single(patterns);
+        Assert.Equal("[invalid", patterns[0]);
     }
 }

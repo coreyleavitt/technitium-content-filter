@@ -51,6 +51,12 @@ class TestPageRoutes:
         assert resp.status_code == 200
         assert "kids" in resp.text
 
+    def test_filters_regex(self, client):
+        resp = client.get("/filters/regex")
+        assert resp.status_code == 200
+        assert "Regex Rules" in resp.text
+        assert "kids" in resp.text
+
     def test_filters_rewrites(self, client):
         resp = client.get("/filters/rewrites")
         assert resp.status_code == 200

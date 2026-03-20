@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ContentFilter.Models;
 
 namespace ContentFilter.Services;
@@ -52,5 +53,47 @@ internal static class DomainEvaluator
     internal static bool IsBlocked(CompiledProfile profile, string domain)
     {
         return profile.BlockedDomains.Count > 0 && DomainMatcher.Matches(profile.BlockedDomains, domain);
+    }
+
+    /// <summary>
+    /// Returns true if the domain matches any regex allow pattern.
+    /// On RegexMatchTimeoutException, treats the pattern as non-matching (fail-open).
+    /// </summary>
+    internal static bool IsRegexAllowlisted(CompiledProfile profile, string domain)
+    {
+        return MatchesAnyRegex(profile.AllowedRegexes, domain);
+    }
+
+    /// <summary>
+    /// Returns true if the domain matches any regex block pattern.
+    /// On RegexMatchTimeoutException, treats the pattern as non-matching (fail-open).
+    /// </summary>
+    internal static bool IsRegexBlocked(CompiledProfile profile, string domain)
+    {
+        return MatchesAnyRegex(profile.BlockedRegexes, domain);
+    }
+
+    private static bool MatchesAnyRegex(Regex[] patterns, string domain)
+    {
+        if (patterns.Length == 0)
+            return false;
+
+        // Trim trailing FQDN dot
+        var trimmed = domain.EndsWith('.') ? domain[..^1] : domain;
+
+        foreach (var regex in patterns)
+        {
+            try
+            {
+                if (regex.IsMatch(trimmed))
+                    return true;
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Fail-open: treat timed-out pattern as non-matching
+            }
+        }
+
+        return false;
     }
 }

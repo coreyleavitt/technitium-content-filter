@@ -123,7 +123,7 @@
                             <a href="${base_path}/clients" class="rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'clients' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Clients</a>
                             <div class="relative" id="filtersDropdown">
                                 <button type="button" onclick="document.getElementById('filtersMenu').classList.toggle('hidden')"
-                                    class="rounded-md px-3 py-2 text-sm font-medium inline-flex items-center ${'bg-indigo-700 text-white' if current in ('filters-blocklists', 'filters-allowlists', 'filters-services', 'filters-rules', 'filters-rewrites') else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">
+                                    class="rounded-md px-3 py-2 text-sm font-medium inline-flex items-center ${'bg-indigo-700 text-white' if current in ('filters-blocklists', 'filters-allowlists', 'filters-services', 'filters-rules', 'filters-regex', 'filters-rewrites') else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">
                                     Filters
                                     <svg class="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
@@ -133,6 +133,7 @@
                                         <a href="${base_path}/filters/allowlists" class="block px-4 py-2 text-sm ${'bg-gray-100 text-gray-900 font-medium' if current == 'filters-allowlists' else 'text-gray-700 hover:bg-gray-50'}">DNS Allowlists</a>
                                         <a href="${base_path}/filters/services" class="block px-4 py-2 text-sm ${'bg-gray-100 text-gray-900 font-medium' if current == 'filters-services' else 'text-gray-700 hover:bg-gray-50'}">Blocked Services</a>
                                         <a href="${base_path}/filters/rules" class="block px-4 py-2 text-sm ${'bg-gray-100 text-gray-900 font-medium' if current == 'filters-rules' else 'text-gray-700 hover:bg-gray-50'}">Custom Filtering Rules</a>
+                                        <a href="${base_path}/filters/regex" class="block px-4 py-2 text-sm ${'bg-gray-100 text-gray-900 font-medium' if current == 'filters-regex' else 'text-gray-700 hover:bg-gray-50'}">Regex Rules</a>
                                         <a href="${base_path}/filters/rewrites" class="block px-4 py-2 text-sm ${'bg-gray-100 text-gray-900 font-medium' if current == 'filters-rewrites' else 'text-gray-700 hover:bg-gray-50'}">DNS Rewrites</a>
                                     </div>
                                 </div>
@@ -160,6 +161,7 @@
                         <a href="${base_path}/filters/allowlists" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-allowlists' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Allowlists</a>
                         <a href="${base_path}/filters/services" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-services' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Blocked Services</a>
                         <a href="${base_path}/filters/rules" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rules' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Custom Filtering Rules</a>
+                        <a href="${base_path}/filters/regex" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-regex' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">Regex Rules</a>
                         <a href="${base_path}/filters/rewrites" class="block rounded-md px-3 py-2 text-sm font-medium ${'bg-indigo-700 text-white' if current == 'filters-rewrites' else 'text-indigo-200 hover:bg-indigo-500 hover:text-white'}">DNS Rewrites</a>
                     </div>
                     <div class="border-t border-indigo-500 pt-1 mt-1">

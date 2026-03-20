@@ -547,6 +547,98 @@ class TestTestDomainScheduleInactive:
 
 
 @pytest.mark.api
+class TestTestDomainRegex:
+    def test_regex_block_blocks_domain(self, client, tmp_config):
+        config = read_config(tmp_config)
+        _set_profile(
+            tmp_config,
+            config,
+            {"kids": _empty_profile(regexBlockRules=[r"^ads?\d*\."])},
+            defaultProfile="kids",
+        )
+
+        resp = client.post("/api/test-domain", json={"domain": "ad.example.com"})
+        data = resp.json()
+        assert data["verdict"] == "BLOCK"
+        assert any(
+            s["step"] == "Regex block" and s["result"] == "BLOCK" for s in data["steps"]
+        )
+
+    def test_regex_allow_overrides_block(self, client, tmp_config):
+        config = read_config(tmp_config)
+        _set_profile(
+            tmp_config,
+            config,
+            {
+                "kids": _empty_profile(
+                    customRules=["example.com"],
+                    regexAllowRules=[r"^safe\."],
+                )
+            },
+            defaultProfile="kids",
+        )
+
+        resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
+        data = resp.json()
+        assert data["verdict"] == "ALLOW"
+        assert any(
+            s["step"] == "Regex allow" and s["result"] == "ALLOW" for s in data["steps"]
+        )
+
+    def test_regex_steps_in_output(self, client, tmp_config):
+        config = read_config(tmp_config)
+        _set_profile(
+            tmp_config,
+            config,
+            {"kids": _empty_profile()},
+            defaultProfile="kids",
+        )
+
+        resp = client.post("/api/test-domain", json={"domain": "example.com"})
+        data = resp.json()
+        step_names = [s["step"] for s in data["steps"]]
+        assert "Regex allow" in step_names
+        assert "Regex block" in step_names
+
+    def test_base_profile_regex_merged(self, client, tmp_config):
+        config = read_config(tmp_config)
+        _set_profile(
+            tmp_config,
+            config,
+            {
+                "base": _empty_profile(regexBlockRules=[r"^tracking\."]),
+                "kids": _empty_profile(),
+            },
+            defaultProfile="kids",
+            baseProfile="base",
+        )
+
+        resp = client.post("/api/test-domain", json={"domain": "tracking.example.com"})
+        data = resp.json()
+        assert data["verdict"] == "BLOCK"
+
+    def test_regex_blocklist_urls_noted(self, client, tmp_config):
+        """Remote regex blocklist URLs noted in step 9 output."""
+        config = read_config(tmp_config)
+        regex_url = "https://example.com/regex-patterns.txt"
+        config["blockLists"] = [
+            {"url": regex_url, "name": "Regex List", "enabled": True, "type": "regex"},
+        ]
+        _set_profile(
+            tmp_config,
+            config,
+            {"kids": _empty_profile(blockLists=[regex_url])},
+            defaultProfile="kids",
+        )
+
+        resp = client.post("/api/test-domain", json={"domain": "something.test"})
+        data = resp.json()
+        regex_step = next(s for s in data["steps"] if s["step"] == "Regex block")
+        assert "remote regex blocklist" in regex_step["detail"]
+        assert "1" in regex_step["detail"]
+
+
+@pytest.mark.api
 class TestTestDomainClientResolutionEdgeCases:
     """Edge cases in client resolution for the test domain endpoint."""
 

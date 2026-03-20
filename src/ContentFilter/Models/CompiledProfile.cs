@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace ContentFilter.Models;
 
 /// <summary>
@@ -21,13 +23,27 @@ public sealed class CompiledProfile
     /// </summary>
     public Dictionary<string, DnsRewriteConfig> Rewrites { get; }
 
+    /// <summary>
+    /// Pre-compiled regex patterns for blocking. Evaluated after domain-based block checks.
+    /// </summary>
+    public Regex[] BlockedRegexes { get; }
+
+    /// <summary>
+    /// Pre-compiled regex patterns for allowing. Evaluated after domain-based allow checks.
+    /// </summary>
+    public Regex[] AllowedRegexes { get; }
+
     public CompiledProfile(
         HashSet<string> blockedDomains,
         HashSet<string> allowedDomains,
-        Dictionary<string, DnsRewriteConfig>? rewrites = null)
+        Dictionary<string, DnsRewriteConfig>? rewrites = null,
+        Regex[]? blockedRegexes = null,
+        Regex[]? allowedRegexes = null)
     {
         BlockedDomains = blockedDomains;
         AllowedDomains = allowedDomains;
         Rewrites = rewrites ?? new Dictionary<string, DnsRewriteConfig>(StringComparer.OrdinalIgnoreCase);
+        BlockedRegexes = blockedRegexes ?? Array.Empty<Regex>();
+        AllowedRegexes = allowedRegexes ?? Array.Empty<Regex>();
     }
 }

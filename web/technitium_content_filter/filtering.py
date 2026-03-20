@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -34,6 +35,18 @@ def _rewrite_matches(rewrites: dict[str, str], query: str) -> tuple[str, str] | 
         if dot < 0 or dot == len(current) - 1:
             break
         current = current[dot + 1 :]
+    return None
+
+
+def _regex_matches(patterns: list[str], domain: str) -> str | None:
+    """Test if domain matches any regex pattern. Returns the matched pattern or None."""
+    trimmed = domain.rstrip(".").lower()
+    for pattern in patterns:
+        try:
+            if re.search(pattern, trimmed, re.IGNORECASE):
+                return pattern
+        except re.error:
+            continue
     return None
 
 

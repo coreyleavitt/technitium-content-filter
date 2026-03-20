@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ContentFilter.Models;
 
 namespace ContentFilter.Services;
@@ -10,11 +11,13 @@ public sealed class ProfileCompiler
 {
     private readonly ServiceRegistry _serviceRegistry;
     private readonly BlockListManager? _blockListManager;
+    private readonly Action<string>? _log;
 
-    public ProfileCompiler(ServiceRegistry serviceRegistry, BlockListManager? blockListManager = null)
+    public ProfileCompiler(ServiceRegistry serviceRegistry, BlockListManager? blockListManager = null, Action<string>? log = null)
     {
         _serviceRegistry = serviceRegistry;
         _blockListManager = blockListManager;
+        _log = log;
     }
 
     /// <summary>
@@ -64,7 +67,11 @@ public sealed class ProfileCompiler
             foreach (var (domain, rewrite) in compiled.Rewrites)
                 mergedRewrites[domain] = rewrite;
 
-            result[name] = new CompiledProfile(mergedBlocked, mergedAllowed, mergedRewrites);
+            // Merge regex arrays: base + child concatenated
+            var mergedBlockedRegexes = baseCompiled.BlockedRegexes.Concat(compiled.BlockedRegexes).ToArray();
+            var mergedAllowedRegexes = baseCompiled.AllowedRegexes.Concat(compiled.AllowedRegexes).ToArray();
+
+            result[name] = new CompiledProfile(mergedBlocked, mergedAllowed, mergedRewrites, mergedBlockedRegexes, mergedAllowedRegexes);
         }
 
         return result;
@@ -112,26 +119,24 @@ public sealed class ProfileCompiler
                 allowed.Add(trimmed);
         }
 
-        // 4. Blocklist domains -- profile.BlockLists now contains URL strings
-        //    that reference global config.BlockLists entries
+        // 4. Build global blocklist lookup (shared by domain and regex steps)
         // #12: Null check/coalesce for profile.BlockLists
+        var globalByUrl = new Dictionary<string, BlockListConfig>(StringComparer.OrdinalIgnoreCase);
+        foreach (var bl in config.BlockLists)
+        {
+            if (bl.Enabled && !string.IsNullOrWhiteSpace(bl.Url))
+                globalByUrl.TryAdd(bl.Url, bl);
+        }
+
+        // 4a. Blocklist domains
         if (_blockListManager is not null && profile.BlockLists is not null)
         {
-            // #13: Deduplicate URLs using the globalByUrl dictionary (already deduped by key)
-            var globalByUrl = new Dictionary<string, BlockListConfig>(StringComparer.OrdinalIgnoreCase);
-            foreach (var bl in config.BlockLists)
-            {
-                if (bl.Enabled && !string.IsNullOrWhiteSpace(bl.Url))
-                    globalByUrl.TryAdd(bl.Url, bl);
-            }
-
             foreach (var url in profile.BlockLists)
             {
                 if (string.IsNullOrWhiteSpace(url))
                     continue;
 
-                // Only include if the global entry exists and is enabled
-                if (!globalByUrl.ContainsKey(url))
+                if (!globalByUrl.TryGetValue(url, out var blConfig) || blConfig.Type == "regex")
                     continue;
 
                 var domains = _blockListManager.GetDomains(url);
@@ -140,6 +145,24 @@ public sealed class ProfileCompiler
                     foreach (var domain in domains)
                         blocked.Add(domain);
                 }
+            }
+        }
+
+        // 4b. Remote regex blocklist patterns
+        var remoteRegexPatterns = new List<string>();
+        if (_blockListManager is not null && profile.BlockLists is not null)
+        {
+            foreach (var url in profile.BlockLists)
+            {
+                if (string.IsNullOrWhiteSpace(url))
+                    continue;
+
+                if (!globalByUrl.TryGetValue(url, out var blConfig) || blConfig.Type != "regex")
+                    continue;
+
+                var patterns = _blockListManager.GetPatterns(url);
+                if (patterns is not null)
+                    remoteRegexPatterns.AddRange(patterns);
             }
         }
 
@@ -152,6 +175,12 @@ public sealed class ProfileCompiler
                 rewrites[domain] = rw;
         }
 
-        return new CompiledProfile(blocked, allowed, rewrites);
+        // 6. Regex rules (inline + remote patterns combined)
+        var combinedBlockPatterns = new List<string>(profile.RegexBlockRules);
+        combinedBlockPatterns.AddRange(remoteRegexPatterns);
+        var blockedRegexes = RegexCompiler.Compile(combinedBlockPatterns, _log);
+        var allowedRegexes = RegexCompiler.Compile(profile.RegexAllowRules, _log);
+
+        return new CompiledProfile(blocked, allowed, rewrites, blockedRegexes, allowedRegexes);
     }
 }

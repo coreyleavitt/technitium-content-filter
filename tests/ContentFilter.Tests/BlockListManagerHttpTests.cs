@@ -176,6 +176,69 @@ public class BlockListManagerHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAsync_RegexType_DownloadsAndParsesPatterns()
+    {
+        var handler = MockHttp("^ads?\\d*\\.\ntracking\\.\n# comment\n");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, Type = "regex" }
+        };
+
+        await manager.RefreshAsync(lists);
+
+        Assert.Null(manager.GetDomains("https://example.com/regex.txt"));
+        var patterns = manager.GetPatterns("https://example.com/regex.txt");
+        Assert.NotNull(patterns);
+        Assert.Equal(2, patterns.Count);
+        Assert.Contains(@"^ads?\d*\.", patterns);
+        Assert.Contains(@"tracking\.", patterns);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RegexType_CacheFallback()
+    {
+        var handler = new SequentialHandler(
+            new MockResponse("^ads\\.\n", HttpStatusCode.OK),
+            new MockResponse("", HttpStatusCode.InternalServerError));
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, RefreshHours = 0, Type = "regex" }
+        };
+
+        await manager.RefreshAsync(lists);
+        var patterns = manager.GetPatterns("https://example.com/regex.txt");
+        Assert.NotNull(patterns);
+        Assert.Single(patterns);
+
+        // Second call fails, cache preserved
+        await manager.RefreshAsync(lists);
+        patterns = manager.GetPatterns("https://example.com/regex.txt");
+        Assert.NotNull(patterns);
+        Assert.Single(patterns);
+    }
+
+    [Fact]
+    public async Task GetAllStatus_RegexList_ShowsCorrectType()
+    {
+        var handler = MockHttp("^ads\\.\ntracking\\.\n");
+        using var manager = CreateManager(handler);
+
+        await manager.RefreshAsync(new[]
+        {
+            new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, Type = "regex" }
+        });
+
+        var status = manager.GetAllStatus();
+        Assert.Single(status);
+        Assert.Equal("regex", status["https://example.com/regex.txt"].Type);
+        Assert.Equal(2, status["https://example.com/regex.txt"].EntryCount);
+    }
+
+    [Fact]
     public async Task GetAllStatus_ReflectsDownloadedLists()
     {
         var handler = MockHttp("a.example.com\nb.example.com\n");
@@ -189,7 +252,7 @@ public class BlockListManagerHttpTests : IDisposable
         var status = manager.GetAllStatus();
         Assert.Single(status);
         Assert.True(status.ContainsKey("https://example.com/list.txt"));
-        Assert.Equal(2, status["https://example.com/list.txt"].DomainCount);
+        Assert.Equal(2, status["https://example.com/list.txt"].EntryCount);
         Assert.NotNull(status["https://example.com/list.txt"].LastFetch);
     }
 

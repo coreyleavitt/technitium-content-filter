@@ -357,6 +357,52 @@ public class DnsFilteringTests
     }
 
     [Fact]
+    public async Task RegexBlockRule_BlocksMatchingDomain()
+    {
+        await _fixture.SetConfigAsync(new
+        {
+            enableBlocking = true,
+            profiles = new Dictionary<string, object>
+            {
+                ["kids"] = new { regexBlockRules = new[] { @"^ads?\d*\." } }
+            },
+            clients = new[]
+            {
+                new { name = "all", ids = new[] { "0.0.0.0/0" }, profile = "kids" }
+            }
+        });
+
+        var response = await _fixture.QueryAsync("ad.example.com");
+
+        Assert.True(response.IsNxDomain, $"Regex block should return NXDOMAIN, got rcode={response.ResponseCode}");
+    }
+
+    [Fact]
+    public async Task RegexAllowRule_OverridesBlock()
+    {
+        await _fixture.SetConfigAsync(new
+        {
+            enableBlocking = true,
+            profiles = new Dictionary<string, object>
+            {
+                ["kids"] = new
+                {
+                    customRules = new[] { "example.com" },
+                    regexAllowRules = new[] { @"^safe\." }
+                }
+            },
+            clients = new[]
+            {
+                new { name = "all", ids = new[] { "0.0.0.0/0" }, profile = "kids" }
+            }
+        });
+
+        var response = await _fixture.QueryAsync("safe.example.com");
+
+        Assert.False(response.IsNxDomain, "Regex allow should override domain block");
+    }
+
+    [Fact]
     public async Task ConfigReload_TakesEffectImmediately()
     {
         // First config: block the domain

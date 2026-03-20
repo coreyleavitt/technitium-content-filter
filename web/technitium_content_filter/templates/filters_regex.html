@@ -1,0 +1,48 @@
+<%inherit file="base.html"/>
+<%def name="title()">Regex Rules</%def>
+<script id="page-data" type="application/json">${json.dumps({"profiles": config.get("profiles", {})}) | n}</script>
+
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Regex Rules</h1>
+        <p class="text-sm text-gray-500 mt-1">Per-profile regex pattern matching. Patterns are matched against the full domain name (case-insensitive). Use # for comments.</p>
+    </div>
+
+    <div class="rounded-lg border border-blue-200 bg-blue-100 p-4">
+        <p class="text-sm text-blue-800">Subscribe to remote regex blocklists on the <a href="${base_path}/filters/blocklists" class="underline font-medium">DNS Blocklists</a> page.</p>
+    </div>
+
+    <div class="flex items-center space-x-3">
+        <label class="text-sm font-medium text-gray-700">Profile:</label>
+        <select id="profilePicker"
+            class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+        </select>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-2">Block Patterns</h2>
+        <p class="text-xs text-gray-500 mb-3">Domains matching these patterns will be blocked (NXDOMAIN). Evaluated after domain-based block checks.</p>
+        <textarea id="regexBlockText" rows="10" placeholder="^ads?\d*\.&#10;tracking\.&#10;# block ad servers"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"></textarea>
+        <span id="blockCount" class="text-xs text-gray-400 mt-1 block"></span>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-2">Allow Patterns</h2>
+        <p class="text-xs text-gray-500 mb-3">Domains matching these patterns will be allowed, overriding both domain and regex block rules.</p>
+        <textarea id="regexAllowText" rows="10" placeholder="^safe\.&#10;\.edu$&#10;# allow educational sites"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"></textarea>
+        <span id="allowCount" class="text-xs text-gray-400 mt-1 block"></span>
+    </div>
+
+    <div class="flex justify-end">
+        <button id="saveRegexBtn" onclick="saveRegexRules()"
+            class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+            Save
+        </button>
+    </div>
+</div>
+
+<%def name="scripts()">
+<script src="${base_path}/static/js/filters-regex.js"></script>
+</%def>

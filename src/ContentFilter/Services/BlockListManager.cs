@@ -14,6 +14,7 @@ public sealed class BlockListManager : IDisposable
     private readonly string _cacheDir;
     private readonly HttpClient _httpClient;
     private readonly ConcurrentDictionary<string, HashSet<string>> _domainsByUrl = new();
+    private readonly ConcurrentDictionary<string, List<string>> _patternsByUrl = new();
     private readonly Action<string>? _log;
 
     public BlockListManager(string appFolder, Action<string>? log = null)
@@ -38,7 +39,15 @@ public sealed class BlockListManager : IDisposable
     }
 
     /// <summary>
-    /// Returns metadata about all known blocklists (url, domain count, last fetch time).
+    /// Returns raw regex patterns for a URL, or null if not yet downloaded.
+    /// </summary>
+    public List<string>? GetPatterns(string url)
+    {
+        return _patternsByUrl.TryGetValue(url, out var patterns) ? patterns : null;
+    }
+
+    /// <summary>
+    /// Returns metadata about all known blocklists (url, entry count, last fetch time, type).
     /// </summary>
     public Dictionary<string, BlockListStatus> GetAllStatus()
     {
@@ -48,7 +57,18 @@ public sealed class BlockListManager : IDisposable
             var meta = LoadMeta(url);
             result[url] = new BlockListStatus
             {
-                DomainCount = domains.Count,
+                EntryCount = domains.Count,
+                Type = "domain",
+                LastFetch = meta?.LastFetch
+            };
+        }
+        foreach (var (url, patterns) in _patternsByUrl)
+        {
+            var meta = LoadMeta(url);
+            result[url] = new BlockListStatus
+            {
+                EntryCount = patterns.Count,
+                Type = "regex",
                 LastFetch = meta?.LastFetch
             };
         }
@@ -64,41 +84,42 @@ public sealed class BlockListManager : IDisposable
     public async Task RefreshAsync(IEnumerable<Models.BlockListConfig> blockLists)
     {
         // #13: Deduplicate URLs using HashSet-backed dictionary
-        var uniqueUrls = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase); // url -> min refresh hours
+        var uniqueUrls = new Dictionary<string, (int RefreshHours, string Type)>(StringComparer.OrdinalIgnoreCase);
         foreach (var bl in blockLists)
         {
             if (!bl.Enabled || string.IsNullOrWhiteSpace(bl.Url))
                 continue;
 
-            if (!uniqueUrls.TryGetValue(bl.Url, out var existing) || bl.RefreshHours < existing)
-                uniqueUrls[bl.Url] = bl.RefreshHours;
+            if (!uniqueUrls.TryGetValue(bl.Url, out var existing) || bl.RefreshHours < existing.RefreshHours)
+                uniqueUrls[bl.Url] = (bl.RefreshHours, bl.Type);
         }
 
         // #15: Download all blocklists in parallel
-        var tasks = uniqueUrls.Select(kvp => RefreshOneWithFallbackAsync(kvp.Key, kvp.Value));
+        var tasks = uniqueUrls.Select(kvp => RefreshOneWithFallbackAsync(kvp.Key, kvp.Value.RefreshHours, kvp.Value.Type));
         await Task.WhenAll(tasks);
     }
 
     /// <summary>
     /// Wraps RefreshOneAsync with error handling and cache fallback.
     /// </summary>
-    private async Task RefreshOneWithFallbackAsync(string url, int refreshHours)
+    private async Task RefreshOneWithFallbackAsync(string url, int refreshHours, string type)
     {
         try
         {
-            await RefreshOneAsync(url, refreshHours);
+            await RefreshOneAsync(url, refreshHours, type);
         }
         catch (Exception ex)
         {
             // #25: Log with exception details
             _log?.Invoke($"BlockListManager: failed to refresh {url}: {ex.Message}");
             // Try to load from cache if we have it
-            if (!_domainsByUrl.ContainsKey(url))
-                LoadFromCache(url);
+            var isLoaded = type == "regex" ? _patternsByUrl.ContainsKey(url) : _domainsByUrl.ContainsKey(url);
+            if (!isLoaded)
+                LoadFromCache(url, type);
         }
     }
 
-    private async Task RefreshOneAsync(string url, int refreshHours)
+    private async Task RefreshOneAsync(string url, int refreshHours, string type)
     {
         var meta = LoadMeta(url);
         var cacheFile = GetCachePath(url);
@@ -115,19 +136,37 @@ public sealed class BlockListManager : IDisposable
             SaveMeta(url, new BlockListMeta { LastFetch = DateTime.UtcNow });
         }
 
-        var domains = ParseFile(cacheFile, _log);
-        _domainsByUrl[url] = domains;
-        _log?.Invoke($"BlockListManager: {url} -> {domains.Count} domains");
+        if (type == "regex")
+        {
+            var patterns = ParsePatternFile(cacheFile, _log);
+            _patternsByUrl[url] = patterns;
+            _log?.Invoke($"BlockListManager: {url} -> {patterns.Count} patterns");
+        }
+        else
+        {
+            var domains = ParseFile(cacheFile, _log);
+            _domainsByUrl[url] = domains;
+            _log?.Invoke($"BlockListManager: {url} -> {domains.Count} domains");
+        }
     }
 
-    private void LoadFromCache(string url)
+    private void LoadFromCache(string url, string type)
     {
         var cacheFile = GetCachePath(url);
         if (File.Exists(cacheFile))
         {
-            var domains = ParseFile(cacheFile, _log);
-            _domainsByUrl[url] = domains;
-            _log?.Invoke($"BlockListManager: loaded {url} from cache -> {domains.Count} domains");
+            if (type == "regex")
+            {
+                var patterns = ParsePatternFile(cacheFile, _log);
+                _patternsByUrl[url] = patterns;
+                _log?.Invoke($"BlockListManager: loaded {url} from cache -> {patterns.Count} patterns");
+            }
+            else
+            {
+                var domains = ParseFile(cacheFile, _log);
+                _domainsByUrl[url] = domains;
+                _log?.Invoke($"BlockListManager: loaded {url} from cache -> {domains.Count} domains");
+            }
         }
     }
 
@@ -181,6 +220,26 @@ public sealed class BlockListManager : IDisposable
         return domains;
     }
 
+    /// <summary>
+    /// Parses a file containing one regex pattern per line. Strips comments (#/!) and blank lines.
+    /// Does NOT validate regex syntax (that's RegexCompiler's job).
+    /// </summary>
+    internal static List<string> ParsePatternFile(string path, Action<string>? log = null)
+    {
+        var patterns = new List<string>();
+
+        foreach (var rawLine in File.ReadLines(path))
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrEmpty(line) || line.StartsWith('#') || line.StartsWith('!'))
+                continue;
+
+            patterns.Add(line);
+        }
+
+        return patterns;
+    }
+
     private string GetCachePath(string url)
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url))).ToLowerInvariant();
@@ -230,6 +289,7 @@ public sealed class BlockListManager : IDisposable
 
 public sealed class BlockListStatus
 {
-    public int DomainCount { get; set; }
+    public int EntryCount { get; set; }
+    public string Type { get; set; } = "domain";
     public DateTime? LastFetch { get; set; }
 }

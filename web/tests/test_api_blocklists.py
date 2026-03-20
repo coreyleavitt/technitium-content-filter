@@ -79,6 +79,51 @@ class TestBlocklistSave:
         assert len(matches) == 1
         assert matches[0]["name"] == "V2"
 
+    def test_save_with_regex_type(self, client, tmp_config):
+        resp = client.post(
+            "/api/blocklists",
+            json={
+                "url": "https://regex-list.txt",
+                "name": "Regex List",
+                "type": "regex",
+            },
+        )
+        assert resp.status_code == 200
+        config = read_config(tmp_config)
+        found = [bl for bl in config["blockLists"] if bl["url"] == "https://regex-list.txt"]
+        assert len(found) == 1
+        assert found[0]["type"] == "regex"
+
+    def test_save_with_invalid_type_returns_400(self, client):
+        resp = client.post(
+            "/api/blocklists",
+            json={"url": "https://bad-type.txt", "type": "invalid"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid type" in resp.json()["error"]
+
+    def test_save_without_type_defaults_to_domain(self, client, tmp_config):
+        client.post("/api/blocklists", json={"url": "https://no-type.txt"})
+        config = read_config(tmp_config)
+        found = [bl for bl in config["blockLists"] if bl["url"] == "https://no-type.txt"]
+        assert found[0]["type"] == "domain"
+
+    def test_toggle_preserves_type(self, client, tmp_config):
+        """Toggle enabled/disabled preserves the type field."""
+        client.post(
+            "/api/blocklists",
+            json={"url": "https://toggle-test.txt", "type": "regex", "enabled": True},
+        )
+        # Toggle off
+        client.post(
+            "/api/blocklists",
+            json={"url": "https://toggle-test.txt", "type": "regex", "enabled": False},
+        )
+        config = read_config(tmp_config)
+        found = [bl for bl in config["blockLists"] if bl["url"] == "https://toggle-test.txt"]
+        assert found[0]["type"] == "regex"
+        assert found[0]["enabled"] is False
+
 
 @pytest.mark.api
 class TestBlocklistDelete:

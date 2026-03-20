@@ -21,6 +21,12 @@ public sealed class ProfileConfig
     [JsonPropertyName("customRules")]
     public List<string> CustomRules { get; set; } = new();
 
+    [JsonPropertyName("regexBlockRules")]
+    public List<string> RegexBlockRules { get; set; } = new();
+
+    [JsonPropertyName("regexAllowRules")]
+    public List<string> RegexAllowRules { get; set; } = new();
+
     [JsonPropertyName("dnsRewrites")]
     public List<DnsRewriteConfig> DnsRewrites { get; set; } = new();
 

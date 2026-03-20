@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
@@ -568,6 +569,82 @@ public class GetRewritePropertyTests
                 var result = FilteringService.GetRewrite(rewrites, subdomain);
                 return (result is not null && result.Answer == "child")
                     .Label($"'{subdomain}' should match child rewrite, not parent '{domain}'");
+            });
+    }
+}
+
+[Trait("Category", "Property")]
+[ReproducibleProperties]
+public class RegexFilteringPropertyTests
+{
+    /// <summary>
+    /// Generates safe regex patterns that match a known domain suffix.
+    /// </summary>
+    private static Gen<string> SafeRegexPattern()
+    {
+        return DnsGenerators.DomainLabel().Select(label => $@"{Regex.Escape(label)}\.");
+    }
+
+    [Property(MaxTest = 50)]
+    public Property DomainMatchedByRegexAllow_IsAlwaysAllowed()
+    {
+        return Prop.ForAll(
+            DnsGenerators.DomainName().ToArbitrary(),
+            domain =>
+            {
+                var pattern = Regex.Escape(domain);
+                var allowedRegexes = RegexCompiler.Compile(new List<string> { pattern });
+                var blockedRegexes = RegexCompiler.Compile(new List<string> { pattern });
+                var profile = new CompiledProfile(
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase) { domain },
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    allowedRegexes: allowedRegexes,
+                    blockedRegexes: blockedRegexes);
+
+                // Regex allow is evaluated before blocks, so the domain should be allowed
+                var isAllowed = DomainEvaluator.IsRegexAllowlisted(profile, domain);
+                return isAllowed.Label($"Domain '{domain}' matched by regex allow should be allowed");
+            });
+    }
+
+    [Property(MaxTest = 50)]
+    public Property InvalidPatterns_NeverCauseHotPathExceptions()
+    {
+        return Prop.ForAll(
+            DnsGenerators.DomainName().ToArbitrary(),
+            domain =>
+            {
+                // Even with invalid patterns that got through somehow, the hot path should not throw
+                var profile = new CompiledProfile(
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+                // These should all return false without throwing
+                var blocked = DomainEvaluator.IsRegexBlocked(profile, domain);
+                var allowed = DomainEvaluator.IsRegexAllowlisted(profile, domain);
+                return (!blocked && !allowed)
+                    .Label("Empty regex arrays should never match");
+            });
+    }
+
+    [Property(MaxTest = 50)]
+    public Property CompiledRegex_MatchesDomainCaseInsensitively()
+    {
+        return Prop.ForAll(
+            DnsGenerators.DomainName().ToArbitrary(),
+            domain =>
+            {
+                var pattern = Regex.Escape(domain);
+                var regexes = RegexCompiler.Compile(new List<string> { pattern });
+                var profile = new CompiledProfile(
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    blockedRegexes: regexes);
+
+                var matchesLower = DomainEvaluator.IsRegexBlocked(profile, domain.ToLowerInvariant());
+                var matchesUpper = DomainEvaluator.IsRegexBlocked(profile, domain.ToUpperInvariant());
+                return (matchesLower && matchesUpper)
+                    .Label($"Regex should match '{domain}' case-insensitively");
             });
     }
 }

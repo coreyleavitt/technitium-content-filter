@@ -6,7 +6,7 @@
     <div class="flex justify-between items-center">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">DNS Blocklists</h1>
-            <p class="text-sm text-gray-500 mt-1">Global blocklist subscriptions. Assign to profiles to activate.</p>
+            <p class="text-sm text-gray-500 mt-1">Global blocklist and regex list subscriptions. Assign to profiles to activate.</p>
         </div>
         <div class="flex space-x-2">
             <button onclick="refreshBlocklists()" id="refreshBtn"
@@ -47,6 +47,14 @@
                         <input type="text" id="blName"
                             class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             placeholder="e.g. OISD Big">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Type</label>
+                        <select id="blType"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="domain">Domain</option>
+                            <option value="regex">Regex</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">URL</label>

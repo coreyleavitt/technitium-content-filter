@@ -419,6 +419,101 @@ public class ProfileCompilerTests
     }
 
     [Fact]
+    public void RegexRules_CompiledIntoProfile()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            Profiles =
+            {
+                ["test"] = new ProfileConfig
+                {
+                    RegexBlockRules = [@"^ads?\d*\.", @"tracking\."],
+                    RegexAllowRules = [@"safe\.example\.com"]
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Equal(2, result["test"].BlockedRegexes.Length);
+        Assert.Single(result["test"].AllowedRegexes);
+    }
+
+    [Fact]
+    public void RegexRules_InvalidSkipped()
+    {
+        var logged = new List<string>();
+        var compiler = new ProfileCompiler(CreateRegistry(), null, msg => logged.Add(msg));
+        var config = new AppConfig
+        {
+            Profiles =
+            {
+                ["test"] = new ProfileConfig
+                {
+                    RegexBlockRules = [@"valid\.", @"[invalid"]
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["test"].BlockedRegexes);
+        Assert.Single(logged);
+    }
+
+    [Fact]
+    public void BaseProfile_MergesRegexArrays()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BaseProfile = "base",
+            Profiles =
+            {
+                ["base"] = new ProfileConfig
+                {
+                    RegexBlockRules = [@"base-pattern\."],
+                    RegexAllowRules = [@"base-allow\."]
+                },
+                ["kids"] = new ProfileConfig
+                {
+                    RegexBlockRules = [@"child-pattern\."],
+                    RegexAllowRules = [@"child-allow\."]
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        // Base stays standalone
+        Assert.Single(result["base"].BlockedRegexes);
+        Assert.Single(result["base"].AllowedRegexes);
+
+        // Kids gets base + own
+        Assert.Equal(2, result["kids"].BlockedRegexes.Length);
+        Assert.Equal(2, result["kids"].AllowedRegexes.Length);
+    }
+
+    [Fact]
+    public void EmptyRegexRules_ProduceEmptyArrays()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            Profiles =
+            {
+                ["test"] = new ProfileConfig()
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Empty(result["test"].BlockedRegexes);
+        Assert.Empty(result["test"].AllowedRegexes);
+    }
+
+    [Fact]
     public void EmptyProfiles_ReturnsEmptyDict()
     {
         var compiler = CreateCompiler();
@@ -427,6 +522,164 @@ public class ProfileCompilerTests
         var result = compiler.CompileAll(config);
 
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public void RegexBlockList_PatternsCompiledIntoProfile()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "blm-regex-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var handler = new BlockListManagerHttpTests.MockHandler(@"^ads?\d*\." + "\n" + @"tracking\." + "\n");
+            using var blm = new BlockListManager(tempDir, handler);
+
+            var config = new AppConfig
+            {
+                BlockLists =
+                [
+                    new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, Type = "regex" }
+                ],
+                Profiles =
+                {
+                    ["test"] = new ProfileConfig
+                    {
+                        BlockLists = ["https://example.com/regex.txt"]
+                    }
+                }
+            };
+
+            blm.RefreshAsync(config.BlockLists).GetAwaiter().GetResult();
+            var compiler = CreateCompiler(blm: blm);
+            var result = compiler.CompileAll(config);
+
+            Assert.Equal(2, result["test"].BlockedRegexes.Length);
+            Assert.Empty(result["test"].BlockedDomains);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void MixedProfile_DomainAndRegexBlocklists_MergedCorrectly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "blm-mixed-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var handler = new BlockListManagerHttpTests.MockHandler(url =>
+                url.Contains("domains") ? "blocked.example.com\n" : @"^tracking\." + "\n");
+            using var blm = new BlockListManager(tempDir, handler);
+
+            var config = new AppConfig
+            {
+                BlockLists =
+                [
+                    new BlockListConfig { Url = "https://example.com/domains.txt", Enabled = true, Type = "domain" },
+                    new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, Type = "regex" }
+                ],
+                Profiles =
+                {
+                    ["test"] = new ProfileConfig
+                    {
+                        BlockLists = ["https://example.com/domains.txt", "https://example.com/regex.txt"],
+                        RegexBlockRules = [@"^ads\."]
+                    }
+                }
+            };
+
+            blm.RefreshAsync(config.BlockLists).GetAwaiter().GetResult();
+            var compiler = CreateCompiler(blm: blm);
+            var result = compiler.CompileAll(config);
+
+            Assert.Contains("blocked.example.com", result["test"].BlockedDomains);
+            // 1 inline + 1 remote = 2 regex patterns
+            Assert.Equal(2, result["test"].BlockedRegexes.Length);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void BaseProfile_MergesRemoteRegexPatterns()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "blm-baserg-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var handler = new BlockListManagerHttpTests.MockHandler(@"^base-pattern\." + "\n");
+            using var blm = new BlockListManager(tempDir, handler);
+
+            var config = new AppConfig
+            {
+                BaseProfile = "base",
+                BlockLists =
+                [
+                    new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, Type = "regex" }
+                ],
+                Profiles =
+                {
+                    ["base"] = new ProfileConfig
+                    {
+                        BlockLists = ["https://example.com/regex.txt"]
+                    },
+                    ["kids"] = new ProfileConfig
+                    {
+                        RegexBlockRules = [@"^child-pattern\."]
+                    }
+                }
+            };
+
+            blm.RefreshAsync(config.BlockLists).GetAwaiter().GetResult();
+            var compiler = CreateCompiler(blm: blm);
+            var result = compiler.CompileAll(config);
+
+            // Base has 1 remote pattern
+            Assert.Single(result["base"].BlockedRegexes);
+            // Kids gets base (1 remote) + own (1 inline) = 2
+            Assert.Equal(2, result["kids"].BlockedRegexes.Length);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void RegexBlockList_UrlNotInGlobal_Skipped()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "blm-skipurl-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            using var blm = new BlockListManager(tempDir);
+            var compiler = CreateCompiler(blm: blm);
+            var config = new AppConfig
+            {
+                BlockLists =
+                [
+                    new BlockListConfig { Url = "https://example.com/known.txt", Enabled = true, Type = "regex" }
+                ],
+                Profiles =
+                {
+                    ["test"] = new ProfileConfig
+                    {
+                        BlockLists = ["https://example.com/unknown.txt"]
+                    }
+                }
+            };
+
+            var result = compiler.CompileAll(config);
+            Assert.Empty(result["test"].BlockedRegexes);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
     }
 
     [Fact]
