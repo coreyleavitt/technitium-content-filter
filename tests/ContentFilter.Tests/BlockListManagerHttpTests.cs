@@ -359,6 +359,8 @@ public class BlockListManagerHttpTests : IDisposable
         private readonly Func<string, string> _responseFactory;
         private readonly HttpStatusCode _status;
         public int RequestCount { get; private set; }
+        public HttpRequestMessage? LastRequest { get; private set; }
+        public Dictionary<string, string> ResponseHeaders { get; set; } = new();
 
         public MockHandler(string content, HttpStatusCode status = HttpStatusCode.OK)
             : this(_ => content, status) { }
@@ -372,31 +374,322 @@ public class BlockListManagerHttpTests : IDisposable
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             RequestCount++;
+            LastRequest = request;
             var content = _responseFactory(request.RequestUri!.ToString());
-            return Task.FromResult(new HttpResponseMessage(_status)
+            var response = new HttpResponseMessage(_status)
             {
                 Content = new StringContent(content)
-            });
+            };
+            foreach (var (key, value) in ResponseHeaders)
+            {
+                if (!response.Headers.TryAddWithoutValidation(key, value))
+                    response.Content.Headers.TryAddWithoutValidation(key, value);
+            }
+            return Task.FromResult(response);
         }
     }
 
-    internal record MockResponse(string Content, HttpStatusCode Status);
+    internal record MockResponse(string Content, HttpStatusCode Status, Dictionary<string, string>? Headers = null);
 
     /// <summary>Returns different responses for sequential requests.</summary>
     internal class SequentialHandler : HttpMessageHandler
     {
         private readonly MockResponse[] _responses;
         private int _index;
+        public int RequestCount { get; private set; }
+        public HttpRequestMessage? LastRequest { get; private set; }
 
         public SequentialHandler(params MockResponse[] responses) => _responses = responses;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            RequestCount++;
+            LastRequest = request;
             var resp = _index < _responses.Length ? _responses[_index++] : _responses[^1];
-            return Task.FromResult(new HttpResponseMessage(resp.Status)
+            var response = new HttpResponseMessage(resp.Status)
             {
                 Content = new StringContent(resp.Content)
-            });
+            };
+            if (resp.Headers is not null)
+            {
+                foreach (var (key, value) in resp.Headers)
+                {
+                    if (!response.Headers.TryAddWithoutValidation(key, value))
+                        response.Content.Headers.TryAddWithoutValidation(key, value);
+                }
+            }
+            return Task.FromResult(response);
         }
     }
+
+    /// <summary>
+    /// Returns 200 with ETag/Last-Modified on first call.
+    /// Returns 304 (empty body) when matching conditional headers are present.
+    /// Falls back to 200 for unconditional requests after the first.
+    /// </summary>
+    internal class ConditionalHandler : HttpMessageHandler
+    {
+        private readonly string _content;
+        private readonly string? _etag;
+        private readonly string? _lastModified;
+        public int RequestCount { get; private set; }
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        public ConditionalHandler(string content, string? etag = null, string? lastModified = null)
+        {
+            _content = content;
+            _etag = etag;
+            _lastModified = lastModified;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            RequestCount++;
+            LastRequest = request;
+
+            var hasIfNoneMatch = request.Headers.TryGetValues("If-None-Match", out var inm)
+                && inm.Any(v => v == _etag);
+            var hasIfModifiedSince = request.Headers.TryGetValues("If-Modified-Since", out var ims)
+                && ims.Any(v => v == _lastModified);
+
+            if (hasIfNoneMatch || hasIfModifiedSince)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)
+                {
+                    Content = new StringContent("")
+                });
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_content)
+            };
+            if (_etag is not null)
+                response.Headers.TryAddWithoutValidation("ETag", _etag);
+            if (_lastModified is not null)
+                response.Content.Headers.TryAddWithoutValidation("Last-Modified", _lastModified);
+            return Task.FromResult(response);
+        }
+    }
+
+    #region Conditional Fetch Tests
+
+    [Fact]
+    public async Task ConditionalFetch_304_SkipsRedownload_KeepsData()
+    {
+        var handler = new ConditionalHandler("ads.example.com\n", etag: "\"abc123\"");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        // First call: 200 with ETag
+        await manager.RefreshAsync(lists);
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Contains("ads.example.com", manager.GetDomains("https://example.com/list.txt")!);
+
+        // Second call: 304 (refreshHours=0 forces re-check)
+        await manager.RefreshAsync(lists);
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("ads.example.com", manager.GetDomains("https://example.com/list.txt")!);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_304_UpdatesLastFetch()
+    {
+        var handler = new ConditionalHandler("ads.example.com\n", etag: "\"v1\"");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        await manager.RefreshAsync(lists);
+        var firstFetch = manager.GetAllStatus()["https://example.com/list.txt"].LastFetch;
+        Assert.NotNull(firstFetch);
+
+        await Task.Delay(50);
+
+        // 304 should still update LastFetch
+        await manager.RefreshAsync(lists);
+        var secondFetch = manager.GetAllStatus()["https://example.com/list.txt"].LastFetch;
+        Assert.NotNull(secondFetch);
+        Assert.True(secondFetch > firstFetch);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_304_LogsNotModified()
+    {
+        var handler = new ConditionalHandler("ads.example.com\n", etag: "\"v1\"");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        await manager.RefreshAsync(lists);
+        _logs.Clear();
+
+        await manager.RefreshAsync(lists);
+        Assert.Contains(_logs, l => l.Contains("not modified (304)"));
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_200_StoresAndSendsHeaders()
+    {
+        var handler = new ConditionalHandler(
+            "ads.example.com\n",
+            etag: "\"etag-value\"",
+            lastModified: "Sat, 01 Jan 2025 00:00:00 GMT");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        // First request: no conditional headers
+        await manager.RefreshAsync(lists);
+        // The ConditionalHandler returns 200 when no conditional headers are present
+
+        // Second request: should send conditional headers
+        await manager.RefreshAsync(lists);
+        var lastReq = handler.LastRequest!;
+        Assert.True(lastReq.Headers.TryGetValues("If-None-Match", out var inm));
+        Assert.Contains("\"etag-value\"", inm);
+        Assert.True(lastReq.Headers.TryGetValues("If-Modified-Since", out var ims));
+        Assert.Contains("Sat, 01 Jan 2025 00:00:00 GMT", ims);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_NoServerHeaders_FallsBackToUnconditional()
+    {
+        // Server returns no ETag or Last-Modified
+        var handler = new ConditionalHandler("ads.example.com\n");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        await manager.RefreshAsync(lists);
+        await manager.RefreshAsync(lists);
+
+        // No conditional headers should be sent
+        var lastReq = handler.LastRequest!;
+        Assert.False(lastReq.Headers.Contains("If-None-Match"));
+        Assert.False(lastReq.Headers.Contains("If-Modified-Since"));
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_OldMetaFormat_NoConditionalHeaders()
+    {
+        var handler = new ConditionalHandler("ads.example.com\n", etag: "\"v1\"");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        // Simulate old meta by writing a meta file with only LastFetch
+        await manager.RefreshAsync(lists);
+
+        // Overwrite meta with old format (no ETag/LastModified fields)
+        var metaFiles = Directory.GetFiles(_tempDir, "*.meta.json", SearchOption.AllDirectories);
+        Assert.Single(metaFiles);
+        File.WriteAllText(metaFiles[0], """{"LastFetch":"2020-01-01T00:00:00Z"}""");
+
+        // Next refresh: stale, downloads without conditional headers
+        await manager.RefreshAsync(lists);
+        var lastReq = handler.LastRequest!;
+        Assert.False(lastReq.Headers.Contains("If-None-Match"));
+        Assert.False(lastReq.Headers.Contains("If-Modified-Since"));
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_304_RegexType_KeepsPatterns()
+    {
+        var handler = new ConditionalHandler("^ads\\.\ntracking\\.\n", etag: "\"regex-v1\"");
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/regex.txt", Enabled = true, RefreshHours = 0, Type = "regex" }
+        };
+
+        await manager.RefreshAsync(lists);
+        Assert.Equal(2, manager.GetPatterns("https://example.com/regex.txt")!.Count);
+
+        // 304 path
+        await manager.RefreshAsync(lists);
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Equal(2, manager.GetPatterns("https://example.com/regex.txt")!.Count);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_304_DataNotInMemory_RedownloadsUnconditionally()
+    {
+        // Use SequentialHandler to control exact responses:
+        // 1st: 200 with ETag (initial download)
+        // 2nd: 304 (conditional check - but we'll clear in-memory data)
+        // 3rd: 200 (unconditional re-download after 304 with no data in memory)
+        var handler = new SequentialHandler(
+            new MockResponse("ads.example.com\n", HttpStatusCode.OK,
+                new Dictionary<string, string> { ["ETag"] = "\"v1\"" }),
+            new MockResponse("", HttpStatusCode.NotModified),
+            new MockResponse("ads.example.com\ntracker.example.com\n", HttpStatusCode.OK));
+        using var manager = CreateManager(handler);
+
+        var lists = new[]
+        {
+            new BlockListConfig { Url = "https://example.com/list.txt", Enabled = true, RefreshHours = 0 }
+        };
+
+        // First download
+        await manager.RefreshAsync(lists);
+        Assert.Single(manager.GetDomains("https://example.com/list.txt")!);
+
+        // Simulate process restart: clear in-memory data but meta still has ETag on disk
+        // We can't directly clear _domainsByUrl, but we can create a new manager sharing the same temp dir
+        using var manager2 = new BlockListManager(_tempDir, handler, msg => _logs.Add(msg));
+
+        // This should get 304, realize data isn't in memory, then re-download
+        await manager2.RefreshAsync(lists);
+        Assert.Equal(3, handler.RequestCount);
+        Assert.Contains(_logs, l => l.Contains("304 but data not in memory"));
+        Assert.NotNull(manager2.GetDomains("https://example.com/list.txt"));
+        Assert.Equal(2, manager2.GetDomains("https://example.com/list.txt")!.Count);
+    }
+
+    [Fact]
+    public async Task ConditionalFetch_StatusReflectsSupport()
+    {
+        var handler = new SequentialHandler(
+            new MockResponse("ads.example.com\n", HttpStatusCode.OK,
+                new Dictionary<string, string> { ["ETag"] = "\"v1\"" }),
+            new MockResponse("plain.example.com\n", HttpStatusCode.OK));
+        using var manager = CreateManager(handler);
+
+        await manager.RefreshAsync(new[]
+        {
+            new BlockListConfig { Url = "https://example.com/with-etag.txt", Enabled = true }
+        });
+        await manager.RefreshAsync(new[]
+        {
+            new BlockListConfig { Url = "https://example.com/no-etag.txt", Enabled = true }
+        });
+
+        var status = manager.GetAllStatus();
+        Assert.True(status["https://example.com/with-etag.txt"].ConditionalFetchSupported);
+        Assert.False(status["https://example.com/no-etag.txt"].ConditionalFetchSupported);
+    }
+
+    #endregion
 }

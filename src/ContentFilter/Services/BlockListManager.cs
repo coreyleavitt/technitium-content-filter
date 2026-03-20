@@ -59,7 +59,8 @@ public sealed class BlockListManager : IDisposable
             {
                 EntryCount = domains.Count,
                 Type = "domain",
-                LastFetch = meta?.LastFetch
+                LastFetch = meta?.LastFetch,
+                ConditionalFetchSupported = meta?.ETag is not null || meta?.LastModified is not null
             };
         }
         foreach (var (url, patterns) in _patternsByUrl)
@@ -69,7 +70,8 @@ public sealed class BlockListManager : IDisposable
             {
                 EntryCount = patterns.Count,
                 Type = "regex",
-                LastFetch = meta?.LastFetch
+                LastFetch = meta?.LastFetch,
+                ConditionalFetchSupported = meta?.ETag is not null || meta?.LastModified is not null
             };
         }
         return result;
@@ -131,9 +133,50 @@ public sealed class BlockListManager : IDisposable
         if (needsDownload)
         {
             _log?.Invoke($"BlockListManager: downloading {url}");
-            var content = await _httpClient.GetStringAsync(url);
-            await File.WriteAllTextAsync(cacheFile, content);
-            SaveMeta(url, new BlockListMeta { LastFetch = DateTime.UtcNow });
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (meta?.LastModified is not null)
+                request.Headers.TryAddWithoutValidation("If-Modified-Since", meta.LastModified);
+            if (meta?.ETag is not null)
+                request.Headers.TryAddWithoutValidation("If-None-Match", meta.ETag);
+
+            using var response = await _httpClient.SendAsync(request);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+            {
+                _log?.Invoke($"BlockListManager: {url} not modified (304)");
+
+                var dataInMemory = type == "regex"
+                    ? _patternsByUrl.ContainsKey(url)
+                    : _domainsByUrl.ContainsKey(url);
+
+                if (!dataInMemory)
+                {
+                    _log?.Invoke($"BlockListManager: {url} 304 but data not in memory, re-downloading");
+                    var freshRequest = new HttpRequestMessage(HttpMethod.Get, url);
+                    using var freshResponse = await _httpClient.SendAsync(freshRequest);
+                    freshResponse.EnsureSuccessStatusCode();
+                    var freshContent = await freshResponse.Content.ReadAsStringAsync();
+                    await File.WriteAllTextAsync(cacheFile, freshContent);
+                    SaveMeta(url, BuildMeta(freshResponse));
+                }
+                else
+                {
+                    SaveMeta(url, new BlockListMeta
+                    {
+                        LastFetch = DateTime.UtcNow,
+                        ETag = meta?.ETag,
+                        LastModified = meta?.LastModified
+                    });
+                    return;
+                }
+            }
+            else
+            {
+                response.EnsureSuccessStatusCode();
+                var content = await response.Content.ReadAsStringAsync();
+                await File.WriteAllTextAsync(cacheFile, content);
+                SaveMeta(url, BuildMeta(response));
+            }
         }
 
         if (type == "regex")
@@ -148,6 +191,22 @@ public sealed class BlockListManager : IDisposable
             _domainsByUrl[url] = domains;
             _log?.Invoke($"BlockListManager: {url} -> {domains.Count} domains");
         }
+    }
+
+    private static BlockListMeta BuildMeta(HttpResponseMessage response)
+    {
+        var etag = response.Headers.ETag?.ToString();
+
+        string? lastModified = null;
+        if (response.Content.Headers.TryGetValues("Last-Modified", out var lmValues))
+            lastModified = lmValues.FirstOrDefault();
+
+        return new BlockListMeta
+        {
+            LastFetch = DateTime.UtcNow,
+            ETag = etag,
+            LastModified = lastModified
+        };
     }
 
     private void LoadFromCache(string url, string type)
@@ -284,6 +343,8 @@ public sealed class BlockListManager : IDisposable
     private sealed class BlockListMeta
     {
         public DateTime LastFetch { get; set; }
+        public string? ETag { get; set; }
+        public string? LastModified { get; set; }
     }
 }
 
@@ -292,4 +353,5 @@ public sealed class BlockListStatus
     public int EntryCount { get; set; }
     public string Type { get; set; } = "domain";
     public DateTime? LastFetch { get; set; }
+    public bool ConditionalFetchSupported { get; set; }
 }
