@@ -14,10 +14,13 @@ A content filtering DNS app plugin for [Technitium DNS Server](https://technitiu
 
 ## Features
 
-- **Per-profile filtering** -- Create profiles with independent blocklists, allowlists, custom rules, and DNS rewrites. Assign profiles to clients by IP, CIDR, MAC address, or DNS-over-TLS client ID.
-- **Blocklist subscriptions** -- Subscribe to remote blocklists (AdGuard, hosts, plain domain formats). Automatic refresh on a configurable schedule.
-- **Blocked services** -- Block entire services (YouTube, TikTok, etc.) with built-in domain lists. Define custom services with your own domain sets.
+- **Per-profile filtering** -- Create profiles with independent blocklists, allowlists, custom rules, regex rules, and DNS rewrites. Assign profiles to clients by IP, CIDR, or DNS-over-TLS/HTTPS client ID.
+- **Blocklist subscriptions** -- Subscribe to remote blocklists (AdGuard, hosts, plain domain formats) and regex blocklists. Automatic refresh with HTTP conditional fetch (If-Modified-Since/ETag).
+- **Blocked services** -- Block entire services (YouTube, TikTok, etc.) with 72 built-in service definitions. Define custom services with your own domain sets.
+- **Regex rules** -- Block or allow domains by regex pattern, inline per-profile or via remote regex blocklists. Compiled with ReDoS timeout protection.
 - **DNS rewrites** -- Redirect domains to alternate IPs or hostnames (e.g., force SafeSearch via CNAME rewrite).
+- **Custom blocking responses** -- Return specific IP addresses or CNAME records instead of NXDOMAIN. Configurable globally or per-profile.
+- **Blocking diagnostics** -- TXT query reports and EDNS Extended DNS Error (EDE code 15) with profile name, matched rule, and source.
 - **Base profile inheritance** -- Designate a base profile whose filters merge into all other profiles. Profile-level allowlists override base-level blocks.
 - **Time-based schedules** -- Enable/disable filtering per day-of-week with timezone support.
 - **Web management UI** -- Dashboard with protection toggle, profile/client management, and a full Filters menu (blocklists, allowlists, services, custom rules, DNS rewrites).
@@ -34,13 +37,15 @@ The system has two components that share a config file (`dnsApp.config`):
 When a DNS query arrives, the plugin evaluates in this order:
 
 1. **Blocking disabled?** -- Allow
-2. **Resolve client to profile** (IP/CIDR/MAC/client ID lookup)
+2. **Resolve client to profile** (DoT/DoH client ID, exact IP, CIDR longest prefix, default)
 3. **No profile?** -- Use base profile if configured
 4. **DNS rewrite match?** -- Return rewrite response (A/AAAA/CNAME)
-5. **Domain in allowlist?** -- Allow (overrides base profile blocks)
-6. **Schedule inactive?** -- Allow
-7. **Domain in merged block set?** -- Block (NXDOMAIN)
-8. **Default** -- Allow
+5. **Domain in allowlist?** -- Allow
+6. **Domain matches regex allow rule?** -- Allow
+7. **Schedule inactive?** -- Allow
+8. **Domain in merged block set?** -- Block (NXDOMAIN or custom blocking addresses)
+9. **Domain matches regex block rule?** -- Block
+10. **Default** -- Allow
 
 ## Project Structure
 
@@ -218,6 +223,10 @@ The plugin stores its configuration in a `dnsApp.config` file in Technitium's ap
   }
 }
 ```
+
+## Comparison with Advanced Blocking App
+
+Content Filter is a replacement for Technitium's built-in [Advanced Blocking App](https://github.com/TechnitiumSoftware/DnsServer/tree/master/Apps/AdvancedBlockingApp) with full feature parity plus DNS rewrites, blocked services, schedules, base profile inheritance, and a web UI. See the [full comparison](docs/reference/advanced-blocking-comparison.md).
 
 ## License
 
