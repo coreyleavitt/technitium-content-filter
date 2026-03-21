@@ -340,9 +340,8 @@ class TestApiNeverCrashes:
         }
         for c, _ in _make_client(tmp_path, base_config):
             resp = c.post(
-                "/api/rewrites",
+                "/api/profiles/test/rewrites",
                 json={
-                    "profile": "test",
                     "domain": domain,
                     "answer": answer,
                 },
@@ -402,9 +401,8 @@ class TestRewriteNormalization:
         for variant in variants:
             for c, config_path in _make_client(tmp_path, base_config):
                 resp = c.post(
-                    "/api/rewrites",
+                    "/api/profiles/test/rewrites",
                     json={
-                        "profile": "test",
                         "domain": variant,
                         "answer": "1.2.3.4",
                     },

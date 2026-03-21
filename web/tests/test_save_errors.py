@@ -90,8 +90,8 @@ class TestSaveConfigOSError:
     def test_allowlist_save_error(self, client):
         with self._make_save_fail():
             resp = client.post(
-                "/api/allowlists",
-                json={"profile": "kids", "domains": ["safe.com"]},
+                "/api/profiles/kids/allowlist",
+                json={"domains": ["safe.com"]},
             )
         assert resp.status_code == 500
         assert "Failed to save" in resp.json()["error"]
@@ -99,8 +99,8 @@ class TestSaveConfigOSError:
     def test_rules_save_error(self, client):
         with self._make_save_fail():
             resp = client.post(
-                "/api/rules",
-                json={"profile": "kids", "rules": ["bad.com"]},
+                "/api/profiles/kids/rules",
+                json={"rules": ["bad.com"]},
             )
         assert resp.status_code == 500
         assert "Failed to save" in resp.json()["error"]
@@ -108,8 +108,8 @@ class TestSaveConfigOSError:
     def test_rewrite_save_error(self, client):
         with self._make_save_fail():
             resp = client.post(
-                "/api/rewrites",
-                json={"profile": "kids", "domain": "a.com", "answer": "1.2.3.4"},
+                "/api/profiles/kids/rewrites",
+                json={"domain": "a.com", "answer": "1.2.3.4"},
             )
         assert resp.status_code == 500
         assert "Failed to save" in resp.json()["error"]
@@ -118,8 +118,8 @@ class TestSaveConfigOSError:
         with self._make_save_fail():
             resp = client.request(
                 "DELETE",
-                "/api/rewrites",
-                json={"profile": "kids", "domain": "search.com"},
+                "/api/profiles/kids/rewrites",
+                json={"domain": "search.com"},
             )
         assert resp.status_code == 500
         assert "Failed to save" in resp.json()["error"]

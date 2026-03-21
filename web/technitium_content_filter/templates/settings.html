@@ -1,0 +1,237 @@
+<%inherit file="base.html"/>
+<%def name="title()">Settings</%def>
+<script id="page-data" type="application/json">${json.dumps({"config": config, "builtinServices": services, "customServices": config.get("customServices", {})}) | n}</script>
+
+<div class="space-y-8">
+    <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
+
+    <!-- Global Settings -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Global Settings</h2>
+        <form id="settingsForm" class="space-y-4 max-w-md">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Time Zone</label>
+                <select id="timeZone"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                </select>
+            </div>
+            <div>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="scheduleAllDay"
+                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        ${'checked' if config.get('scheduleAllDay', True) else ''}>
+                    <span class="text-sm font-medium text-gray-700">24-hour schedule mode</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1 ml-6">When enabled, blocking is active all day on scheduled days. Disable to set specific hours per day.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Default Profile</label>
+                <p class="text-xs text-gray-500 mt-0.5">Applied to clients not assigned a specific profile</p>
+                <select id="defaultProfile"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    <option value="">None (allow all)</option>
+                    % for name in config.get('profiles', {}):
+                    <option value="${name}" ${'selected' if config.get('defaultProfile') == name else ''}>${name}</option>
+                    % endfor
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Base Profile</label>
+                <p class="text-xs text-gray-500 mt-0.5">Filters from this profile are merged into all other profiles. Profile-level allowlists override base blocks.</p>
+                <select id="baseProfile"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    <option value="">None</option>
+                    % for name in config.get('profiles', {}):
+                    <option value="${name}" ${'selected' if config.get('baseProfile') == name else ''}>${name}</option>
+                    % endfor
+                </select>
+            </div>
+            <div>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="allowTxtBlockingReport"
+                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        ${'checked' if config.get('allowTxtBlockingReport') else ''}>
+                    <span class="text-sm font-medium text-gray-700">Allow TXT blocking report</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1 ml-6">Include TXT record diagnostics in blocking responses.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Global Blocking Addresses</label>
+                <p class="text-xs text-gray-500 mt-0.5 mb-1">Custom blocking addresses (one per line). Leave empty for NXDOMAIN.</p>
+                <textarea id="globalBlockingAddresses" rows="2" placeholder="0.0.0.0&#10;::"
+                    class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs">${chr(10).join(config.get('blockingAddresses', []) if isinstance(config.get('blockingAddresses'), list) else [])}</textarea>
+            </div>
+            <button type="submit"
+                class="inline-flex justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                Save Settings
+            </button>
+        </form>
+    </div>
+
+    <!-- DNS Blocklists -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">DNS Blocklists</h2>
+                <p class="text-sm text-gray-500 mt-1">Global blocklist and regex list subscriptions. Assign to profiles to activate.</p>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="refreshBlocklists()" id="refreshBtn"
+                    class="inline-flex justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    Refresh All
+                </button>
+                <button onclick="openBlocklistModal()"
+                    class="inline-flex justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                    Add Blocklist
+                </button>
+            </div>
+        </div>
+        <div id="blocklistsList"></div>
+    </div>
+
+    <!-- Service Definitions -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Service Definitions</h2>
+                <p class="text-sm text-gray-500 mt-1">Define services by their domains. Block them by assigning to profiles.</p>
+            </div>
+            <button onclick="openServiceModal()"
+                class="inline-flex justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                Add Custom Service
+            </button>
+        </div>
+        <div id="customServicesList" class="px-6 py-4"></div>
+
+        <details class="border-t border-gray-200">
+            <summary class="px-6 py-4 cursor-pointer text-sm font-semibold text-gray-900 hover:bg-gray-50">
+                Built-in Services (${len(services)})
+            </summary>
+            <div class="px-6 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                % for svc_id, svc in sorted(services.items(), key=lambda x: x[1].get('name', x[0])):
+                <div class="border border-gray-200 rounded-md p-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-sm font-medium text-gray-900">${svc.get('name', svc_id)}</span>
+                            <span class="text-xs text-gray-400 ml-1">(${svc_id})</span>
+                        </div>
+                        <span class="text-xs text-gray-400">${len(svc.get('domains', []))} domains</span>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        % for d in svc.get('domains', [])[:5]:
+                        <span class="text-xs font-mono text-gray-500 bg-gray-50 px-1 rounded">${d}</span>
+                        % endfor
+                        % if len(svc.get('domains', [])) > 5:
+                        <span class="text-xs text-gray-400">+${len(svc['domains']) - 5} more</span>
+                        % endif
+                    </div>
+                </div>
+                % endfor
+            </div>
+        </details>
+    </div>
+</div>
+
+<!-- Blocklist Modal -->
+<div id="blocklistModal" class="relative z-10 hidden" aria-modal="true">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 sm:items-center">
+            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 shadow-xl sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" id="blModalTitle">Add Blocklist</h3>
+                <form id="blocklistForm" class="space-y-4">
+                    <input type="hidden" id="originalUrl" value="">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="blName"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="e.g. OISD Big">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Type</label>
+                        <select id="blType"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="domain">Domain</option>
+                            <option value="regex">Regex</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">URL</label>
+                        <input type="url" id="blUrl" required
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"
+                            placeholder="https://...">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="blEnabled" checked
+                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-gray-700">Enabled</span>
+                        </label>
+                        <div>
+                            <label class="text-sm text-gray-700">Refresh every</label>
+                            <input type="number" id="blRefreshHours" value="24" min="1" max="720"
+                                class="w-16 ml-1 rounded-md border border-gray-300 px-2 py-1 text-sm">
+                            <span class="text-sm text-gray-500">hours</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button type="button" onclick="closeBlocklistModal()"
+                            class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Service Modal -->
+<div id="serviceModal" class="relative z-10 hidden" aria-modal="true">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 sm:items-center">
+            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 shadow-xl sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" id="serviceModalTitle">Add Custom Service</h3>
+                <form id="serviceForm" class="space-y-4">
+                    <input type="hidden" id="originalServiceId" value="">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Service ID</label>
+                        <p class="text-xs text-gray-500">Lowercase identifier (e.g. "my-games"). Cannot overlap with built-in IDs.</p>
+                        <input type="text" id="serviceId" required pattern="[a-z0-9][a-z0-9\-]*"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Display Name</label>
+                        <input type="text" id="serviceName" required
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Domains</label>
+                        <p class="text-xs text-gray-500 mb-1">One domain per line. Subdomains are matched automatically.</p>
+                        <textarea id="serviceDomains" rows="6" required placeholder="game1.com&#10;game2.com"
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button type="button" onclick="closeServiceModal()"
+                            class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%def name="scripts()">
+<script src="${base_path}/static/js/settings.js"></script>
+</%def>

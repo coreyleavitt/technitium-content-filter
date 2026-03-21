@@ -22,7 +22,7 @@
                     </li>
                     <li class="flex items-center space-x-2">
                         <span class="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-200 text-xs font-bold text-indigo-800">3</span>
-                        <span><a href="${base_path}/filters/blocklists" class="font-medium underline hover:text-indigo-600">Configure filters</a> to start blocking domains</span>
+                        <span><a href="${base_path}/settings" class="font-medium underline hover:text-indigo-600">Configure blocklists</a> in Settings</span>
                     </li>
                 </ol>
             </div>
@@ -174,7 +174,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         % if profile:
-                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">${profile_name}</span>
+                        <a href="${base_path}/profiles/${profile_name}" class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 hover:bg-indigo-200">${profile_name}</a>
                         % elif profile_name:
                         <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">${profile_name} (missing)</span>
                         % else:
@@ -236,7 +236,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="flex items-center space-x-2">
-                            <span class="text-sm font-semibold text-gray-900">${name}</span>
+                            <a href="${base_path}/profiles/${name}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-500">${name}</a>
                             <span class="text-xs text-gray-400">${client_count} device${'s' if client_count != 1 else ''}</span>
                         </div>
                         % if profile.get('description'):
@@ -286,57 +286,7 @@
         </div>
     </details>
 
-    <!-- Settings (collapsed) -->
-    <details class="bg-white shadow rounded-lg overflow-hidden">
-        <summary class="px-6 py-4 cursor-pointer text-sm font-semibold text-gray-900 hover:bg-gray-50">
-            Settings
-        </summary>
-        <div class="px-6 pb-6 pt-2 border-t border-gray-200">
-            <form id="settingsForm" class="space-y-4 max-w-md">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Time Zone</label>
-                    <select id="timeZone"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
-                    </select>
-                </div>
-                <div>
-                    <label class="flex items-center space-x-2">
-                        <input type="checkbox" id="scheduleAllDay"
-                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            ${'checked' if config.get('scheduleAllDay', True) else ''}>
-                        <span class="text-sm font-medium text-gray-700">24-hour schedule mode</span>
-                    </label>
-                    <p class="text-xs text-gray-500 mt-1 ml-6">When enabled, blocking is active all day on scheduled days. Disable to set specific hours per day.</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Default Profile</label>
-                    <p class="text-xs text-gray-500 mt-0.5">Applied to clients not assigned a specific profile</p>
-                    <select id="defaultProfile"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
-                        <option value="">None (allow all)</option>
-                        % for name in config['profiles']:
-                        <option value="${name}" ${'selected' if config.get('defaultProfile') == name else ''}>${name}</option>
-                        % endfor
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Base Profile</label>
-                    <p class="text-xs text-gray-500 mt-0.5">Filters from this profile are merged into all other profiles. Profile-level allowlists override base blocks.</p>
-                    <select id="baseProfile"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
-                        <option value="">None</option>
-                        % for name in config['profiles']:
-                        <option value="${name}" ${'selected' if config.get('baseProfile') == name else ''}>${name}</option>
-                        % endfor
-                    </select>
-                </div>
-                <button type="submit"
-                    class="inline-flex justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
-                    Save Settings
-                </button>
-            </form>
-        </div>
-    </details>
+
 </div>
 
 <%def name="scripts()">

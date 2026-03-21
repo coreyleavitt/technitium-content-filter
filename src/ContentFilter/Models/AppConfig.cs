@@ -37,4 +37,7 @@ public sealed class AppConfig
 
     [JsonPropertyName("allowTxtBlockingReport")]
     public bool AllowTxtBlockingReport { get; set; }
+
+    [JsonPropertyName("blockingAddresses")]
+    public List<string> BlockingAddresses { get; set; } = new();
 }

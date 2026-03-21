@@ -528,6 +528,245 @@ public class AppTests : IDisposable
         _mockServer.Received().WriteLog(Arg.Is<string>(s => s.Contains("initialized")));
     }
 
+    // --- Blocking address response tests ---
+
+    [Fact]
+    public async Task BlockWithIPv4Address_ReturnsNoErrorWithARecord()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["10.0.0.1"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 70);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        var aRecord = response.Answer[0].RDATA as DnsARecordData;
+        Assert.NotNull(aRecord);
+        Assert.Equal(IPAddress.Parse("10.0.0.1"), aRecord.Address);
+        Assert.Equal(60u, response.Answer[0].OriginalTtlValue);
+    }
+
+    [Fact]
+    public async Task BlockWithIPv6Address_AaaaQuery_ReturnsNoErrorWithAaaaRecord()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["fd00::1"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 71, qtype: DnsResourceRecordType.AAAA);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        var aaaaRecord = response.Answer[0].RDATA as DnsAAAARecordData;
+        Assert.NotNull(aaaaRecord);
+        Assert.Equal(IPAddress.Parse("fd00::1"), aaaaRecord.Address);
+    }
+
+    [Fact]
+    public async Task BlockWithDomainAddress_ReturnsNoErrorWithCnameRecord()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["blockpage.example.com"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 72);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        var cnameRecord = response.Answer[0].RDATA as DnsCNAMERecordData;
+        Assert.NotNull(cnameRecord);
+        Assert.Equal("blockpage.example.com", cnameRecord.Domain);
+    }
+
+    [Fact]
+    public async Task BlockWithAddresses_TxtQuery_StillReturnsTxtDiagnostic()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["10.0.0.1"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 73, qtype: DnsResourceRecordType.TXT);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        // TXT diagnostic takes precedence over blocking addresses
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        Assert.Equal(DnsResourceRecordType.TXT, response.Answer[0].Type);
+        var txt = response.Answer[0].RDATA as DnsTXTRecordData;
+        Assert.NotNull(txt);
+        Assert.Contains("source=content-filter", txt.GetText());
+    }
+
+    [Fact]
+    public async Task BlockWithAddresses_EdnsClient_ReturnsNoErrorWithEde()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "allowTxtBlockingReport": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["10.0.0.1"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeEdnsRequest("blocked.com", id: 74);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        // Should be NoError (not NXDOMAIN) with address records + EDE
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.NotEmpty(response.Answer);
+        Assert.NotNull(response.EDNS);
+    }
+
+    [Fact]
+    public async Task BlockWithNoAddresses_ReturnsNxdomain_BackwardCompatible()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 75);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NxDomain, response.RCODE);
+    }
+
+    [Fact]
+    public async Task BlockWithIPv4Address_AaaaQuery_ReturnsNoErrorEmptyAnswer()
+    {
+        // IPv4 blocking address with AAAA query -> NODATA (NoError, empty answer)
+        var config = """
+        {
+            "enableBlocking": true,
+            "defaultProfile": "kids",
+            "profiles": {
+                "kids": {
+                    "customRules": ["blocked.com"],
+                    "blockingAddresses": ["10.0.0.1"]
+                }
+            }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 76, qtype: DnsResourceRecordType.AAAA);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Empty(response.Answer);
+    }
+
+    [Fact]
+    public async Task BlockWithGlobalAddresses_ProfileInherits()
+    {
+        var config = """
+        {
+            "enableBlocking": true,
+            "blockingAddresses": ["10.0.0.1"],
+            "defaultProfile": "kids",
+            "profiles": { "kids": { "customRules": ["blocked.com"] } }
+        }
+        """;
+
+        using var app = await CreateInitializedApp(config);
+        var request = MakeRequest("blocked.com", id: 77);
+
+        var allowed = await app.IsAllowedAsync(request, EP());
+        Assert.False(allowed);
+
+        var response = await app.ProcessRequestAsync(request, EP());
+
+        Assert.Equal(DnsResponseCode.NoError, response.RCODE);
+        Assert.Single(response.Answer);
+        var aRecord = response.Answer[0].RDATA as DnsARecordData;
+        Assert.NotNull(aRecord);
+        Assert.Equal(IPAddress.Parse("10.0.0.1"), aRecord.Address);
+    }
+
     // --- Blocking diagnostics tests ---
 
     [Fact]

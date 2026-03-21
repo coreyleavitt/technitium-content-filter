@@ -33,17 +33,25 @@ public sealed class CompiledProfile
     /// </summary>
     public Regex[] AllowedRegexes { get; }
 
+    /// <summary>
+    /// Pre-parsed blocking addresses (IPv4, IPv6, domain names) for custom block responses.
+    /// Empty set means NXDOMAIN (default behavior).
+    /// </summary>
+    public BlockingAddressSet BlockingAddresses { get; }
+
     public CompiledProfile(
         HashSet<string> blockedDomains,
         HashSet<string> allowedDomains,
         Dictionary<string, DnsRewriteConfig>? rewrites = null,
         Regex[]? blockedRegexes = null,
-        Regex[]? allowedRegexes = null)
+        Regex[]? allowedRegexes = null,
+        BlockingAddressSet? blockingAddresses = null)
     {
         BlockedDomains = blockedDomains;
         AllowedDomains = allowedDomains;
         Rewrites = rewrites ?? new Dictionary<string, DnsRewriteConfig>(StringComparer.OrdinalIgnoreCase);
         BlockedRegexes = blockedRegexes ?? Array.Empty<Regex>();
         AllowedRegexes = allowedRegexes ?? Array.Empty<Regex>();
+        BlockingAddresses = blockingAddresses ?? BlockingAddressSet.Empty;
     }
 }

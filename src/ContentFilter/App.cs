@@ -14,6 +14,9 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
     /// <summary>Default TTL in seconds for rewrite DNS responses.</summary>
     internal const uint DefaultTtlSeconds = 300;
 
+    /// <summary>TTL in seconds for blocking address responses (shorter for faster recovery on config changes).</summary>
+    internal const uint BlockingTtlSeconds = 60;
+
     /// <summary>Background blocklist refresh interval in minutes.</summary>
     internal const int RefreshIntervalMinutes = 15;
 
@@ -178,6 +181,32 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
                 DnsResponseCode.NoError, request.Question, new[] { txtRecord });
         }
 
+        // Blocking address path: return NoError with address records instead of NXDOMAIN
+        var addresses = result?.BlockingAddresses;
+        if (addresses is not null && !addresses.IsEmpty && request.Question.Count > 0)
+        {
+            var records = BuildAddressRecords(request.Question[0], addresses, BlockingTtlSeconds);
+
+            if (report is not null && request.EDNS is not null)
+            {
+                var edeOption = new EDnsOption(
+                    EDnsOptionCode.EXTENDED_DNS_ERROR,
+                    new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.Blocked, report));
+
+                return new DnsDatagram(
+                    request.Identifier, true, DnsOpcode.StandardQuery, false, false,
+                    request.RecursionDesired, true, false, false,
+                    DnsResponseCode.NoError, request.Question,
+                    records, null, null,
+                    _dnsServer.UdpPayloadSize, EDnsHeaderFlags.None, new[] { edeOption });
+            }
+
+            return new DnsDatagram(
+                request.Identifier, true, request.OPCODE, true, false,
+                request.RecursionDesired, true, false, false,
+                DnsResponseCode.NoError, request.Question, records);
+        }
+
         // Non-TXT + EDNS client + report -> NXDOMAIN with EDE code 15
         if (report is not null && request.EDNS is not null)
         {
@@ -210,6 +239,49 @@ public sealed class App : IDnsApplication, IDnsRequestBlockingHandler
             report += $"; regex={result.BlockReason.MatchedRegex}";
 
         return report;
+    }
+
+    internal static List<DnsResourceRecord> BuildAddressRecords(
+        DnsQuestionRecord question, BlockingAddressSet addresses, uint ttl)
+    {
+        var records = new List<DnsResourceRecord>();
+
+        if (addresses.DomainNames.Length > 0)
+        {
+            // CNAME records for any query type
+            foreach (var domain in addresses.DomainNames)
+            {
+                records.Add(new DnsResourceRecord(
+                    question.Name, DnsResourceRecordType.CNAME, DnsClass.IN, ttl,
+                    new DnsCNAMERecordData(domain)));
+            }
+        }
+        else
+        {
+            // A records for A/ANY queries
+            if (question.Type is DnsResourceRecordType.A or DnsResourceRecordType.ANY)
+            {
+                foreach (var ip in addresses.IPv4Addresses)
+                {
+                    records.Add(new DnsResourceRecord(
+                        question.Name, DnsResourceRecordType.A, DnsClass.IN, ttl,
+                        new DnsARecordData(ip)));
+                }
+            }
+
+            // AAAA records for AAAA/ANY queries
+            if (question.Type is DnsResourceRecordType.AAAA or DnsResourceRecordType.ANY)
+            {
+                foreach (var ip in addresses.IPv6Addresses)
+                {
+                    records.Add(new DnsResourceRecord(
+                        question.Name, DnsResourceRecordType.AAAA, DnsClass.IN, ttl,
+                        new DnsAAAARecordData(ip)));
+                }
+            }
+        }
+
+        return records;
     }
 
     private static DnsDatagram BuildRewriteResponse(DnsDatagram request, DnsRewriteConfig rewrite)

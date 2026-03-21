@@ -1,4 +1,4 @@
-"""E2E tests for the DNS Blocklists filter page."""
+"""E2E tests for the blocklists section on the settings page."""
 
 import pytest
 
@@ -10,21 +10,21 @@ pytestmark = pytest.mark.e2e
 class TestBlocklistsList:
     def test_blocklists_rendered(self, page, live_server):
         """Blocklist table renders existing entries."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
         assert page.get_by_text("Ad List").is_visible()
         assert page.get_by_text("https://example.com/list.txt").is_visible()
 
     def test_enabled_status(self, page, live_server):
         """Enabled blocklist shows 'Enabled' status."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
         table = page.locator("#blocklistsList")
         assert table.get_by_text("Enabled", exact=True).is_visible()
 
     def test_profile_badges(self, page, live_server):
         """Blocklist shows which profiles use it."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
         # kids profile uses this blocklist
         table = page.locator("#blocklistsList")
@@ -32,7 +32,7 @@ class TestBlocklistsList:
 
     def test_empty_blocklists(self, page, live_server_empty):
         """Empty config shows 'no blocklists' message."""
-        page.goto(f"{live_server_empty}/filters/blocklists")
+        page.goto(f"{live_server_empty}/settings")
         page.locator("#blocklistsList").wait_for()
         assert page.get_by_text("No blocklists configured").is_visible()
 
@@ -40,7 +40,7 @@ class TestBlocklistsList:
 class TestBlocklistCreate:
     def test_add_blocklist(self, page, live_server, config_path):
         """Add a new blocklist via modal."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.get_by_role("button", name="Add Blocklist").click()
@@ -67,7 +67,7 @@ class TestBlocklistCreate:
 class TestBlocklistEdit:
     def test_edit_blocklist(self, page, live_server, config_path):
         """Edit existing blocklist -- URL field is readonly."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.locator("#blocklistsList button:has-text('Edit')").first.click()
@@ -87,7 +87,7 @@ class TestBlocklistEdit:
 
     def test_edit_prefills_values(self, page, live_server):
         """Edit modal pre-fills name, URL, enabled state."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.locator("#blocklistsList button:has-text('Edit')").first.click()
@@ -101,7 +101,7 @@ class TestBlocklistEdit:
 class TestBlocklistDelete:
     def test_delete_blocklist(self, page, live_server, config_path):
         """Delete a blocklist via confirm dialog."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.on("dialog", lambda dialog: dialog.accept())
@@ -115,7 +115,7 @@ class TestBlocklistDelete:
 class TestBlocklistDeleteCancel:
     def test_delete_cancel_preserves_blocklist(self, page, live_server, config_path):
         """Dismissing the confirm dialog preserves the blocklist."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         initial_config = read_config(config_path)
@@ -131,7 +131,7 @@ class TestBlocklistDeleteCancel:
 class TestBlocklistRefresh:
     def test_refresh_button(self, page, live_server):
         """Refresh All button changes text during refresh."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         btn = page.locator("#refreshBtn")
@@ -144,7 +144,7 @@ class TestBlocklistRefresh:
 
     def test_refresh_button_shows_loading_state(self, page, live_server):
         """Refresh button shows 'Refreshing...' text during the API call."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         btn = page.locator("#refreshBtn")
@@ -166,14 +166,14 @@ class TestBlocklistRefresh:
 class TestBlocklistType:
     def test_type_badge_domain(self, page, live_server):
         """Default blocklist shows Domain badge."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
         table = page.locator("#blocklistsList")
         assert table.get_by_text("Domain", exact=True).is_visible()
 
     def test_add_regex_blocklist_shows_badge(self, page, live_server, config_path):
         """Adding a regex blocklist shows Regex badge."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.get_by_role("button", name="Add Blocklist").click()
@@ -190,14 +190,15 @@ class TestBlocklistType:
 
         config = read_config(config_path)
         added = next(
-            bl for bl in config["blockLists"]
+            bl
+            for bl in config["blockLists"]
             if bl["url"] == "https://regex.example.com/patterns.txt"
         )
         assert added["type"] == "regex"
 
     def test_type_dropdown_in_modal(self, page, live_server):
         """Type dropdown visible when adding a new blocklist."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.get_by_role("button", name="Add Blocklist").click()
@@ -209,7 +210,7 @@ class TestBlocklistType:
 
     def test_type_disabled_on_edit(self, page, live_server):
         """Type dropdown is disabled when editing an existing blocklist."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.locator("#blocklistsList button:has-text('Edit')").first.click()
@@ -222,7 +223,7 @@ class TestBlocklistType:
 class TestBlocklistModal:
     def test_modal_opens_and_closes(self, page, live_server):
         """Modal can be opened and cancelled."""
-        page.goto(f"{live_server}/filters/blocklists")
+        page.goto(f"{live_server}/settings")
         page.locator("#blocklistsList").wait_for()
 
         page.get_by_role("button", name="Add Blocklist").click()

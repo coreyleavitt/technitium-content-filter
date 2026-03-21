@@ -560,9 +560,7 @@ class TestTestDomainRegex:
         resp = client.post("/api/test-domain", json={"domain": "ad.example.com"})
         data = resp.json()
         assert data["verdict"] == "BLOCK"
-        assert any(
-            s["step"] == "Regex block" and s["result"] == "BLOCK" for s in data["steps"]
-        )
+        assert any(s["step"] == "Regex block" and s["result"] == "BLOCK" for s in data["steps"])
 
     def test_regex_allow_overrides_block(self, client, tmp_config):
         config = read_config(tmp_config)
@@ -581,9 +579,7 @@ class TestTestDomainRegex:
         resp = client.post("/api/test-domain", json={"domain": "safe.example.com"})
         data = resp.json()
         assert data["verdict"] == "ALLOW"
-        assert any(
-            s["step"] == "Regex allow" and s["result"] == "ALLOW" for s in data["steps"]
-        )
+        assert any(s["step"] == "Regex allow" and s["result"] == "ALLOW" for s in data["steps"])
 
     def test_regex_steps_in_output(self, client, tmp_config):
         config = read_config(tmp_config)

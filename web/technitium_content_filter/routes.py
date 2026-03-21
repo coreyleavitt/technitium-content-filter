@@ -192,42 +192,40 @@ async def clients_page(request: Request) -> HTMLResponse:
     )
 
 
-async def services_redirect(request: Request) -> RedirectResponse:
-    base = config.BASE_PATH.rstrip("/")
-    return RedirectResponse(url=f"{base}/filters/services", status_code=301)
-
-
-async def filters_blocklists_page(request: Request) -> HTMLResponse:
+async def profile_detail_page(request: Request) -> HTMLResponse:
+    name = request.path_params["name"]
     cfg = config.load_config()
-    return render("filters_blocklists.html", current="filters-blocklists", config=cfg)
-
-
-async def filters_allowlists_page(request: Request) -> HTMLResponse:
-    cfg = config.load_config()
-    return render("filters_allowlists.html", current="filters-allowlists", config=cfg)
-
-
-async def filters_services_page(request: Request) -> HTMLResponse:
-    cfg = config.load_config()
+    profiles = cfg.get("profiles")
+    if not isinstance(profiles, dict) or name not in profiles:
+        base = config.BASE_PATH.rstrip("/")
+        return RedirectResponse(url=f"{base}/profiles", status_code=302)  # type: ignore[return-value]
     services = config.load_blocked_services()
+    custom = cfg.get("customServices")
+    all_services = {**services, **(_as_obj(custom) if isinstance(custom, dict) else {})}
     return render(
-        "filters_services.html", current="filters-services", config=cfg, services=services
+        "profile_detail.html",
+        current="profiles",
+        config=cfg,
+        profile_name=name,
+        profile=profiles[name],
+        services=all_services,
     )
 
 
-async def filters_rules_page(request: Request) -> HTMLResponse:
+async def settings_page(request: Request) -> HTMLResponse:
     cfg = config.load_config()
-    return render("filters_rules.html", current="filters-rules", config=cfg)
+    services = config.load_blocked_services()
+    return render("settings.html", current="settings", config=cfg, services=services)
 
 
-async def filters_regex_page(request: Request) -> HTMLResponse:
-    cfg = config.load_config()
-    return render("filters_regex.html", current="filters-regex", config=cfg)
+async def _redirect_to_settings(request: Request) -> RedirectResponse:
+    base = config.BASE_PATH.rstrip("/")
+    return RedirectResponse(url=f"{base}/settings", status_code=301)
 
 
-async def filters_rewrites_page(request: Request) -> HTMLResponse:
-    cfg = config.load_config()
-    return render("filters_rewrites.html", current="filters-rewrites", config=cfg)
+async def _redirect_to_profiles(request: Request) -> RedirectResponse:
+    base = config.BASE_PATH.rstrip("/")
+    return RedirectResponse(url=f"{base}/profiles", status_code=301)
 
 
 # --- API Routes ---
@@ -255,6 +253,11 @@ async def api_config_set(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "reloaded": reloaded})
 
 
+_OVERVIEW_FIELDS = frozenset(
+    {"description", "blockedServices", "blockLists", "schedule", "blockingAddresses"}
+)
+
+
 async def api_profile_save(request: Request) -> JSONResponse:
     data = _validate_json_obj(await request.json())
     name = _as_str(data.pop("name", ""))
@@ -268,7 +271,15 @@ async def api_profile_save(request: Request) -> JSONResponse:
     async with config.config_lock:
         cfg = config.load_config()
         profiles = _as_obj(cfg.get("profiles") or {})
-        profiles[name] = data
+        existing = (
+            _as_obj(profiles[name]) if name in profiles and isinstance(profiles[name], dict) else {}
+        )
+        # Merge: only overview fields from request, preserve filter data from existing
+        merged: JsonObj = {**existing}
+        for key in _OVERVIEW_FIELDS:
+            if key in data:
+                merged[key] = data[key]
+        profiles[name] = merged
         cfg["profiles"] = profiles
         try:
             config.save_config(cfg)
@@ -413,6 +424,10 @@ async def api_settings_save(request: Request) -> JSONResponse:
         cfg["baseProfile"] = data.get("baseProfile") or None
         cfg["timeZone"] = data.get("timeZone", "America/Denver")
         cfg["scheduleAllDay"] = data.get("scheduleAllDay", True)
+        if "allowTxtBlockingReport" in data:
+            cfg["allowTxtBlockingReport"] = data["allowTxtBlockingReport"]
+        if "blockingAddresses" in data:
+            cfg["blockingAddresses"] = data["blockingAddresses"]
         try:
             config.save_config(cfg)
         except OSError as exc:
@@ -575,21 +590,37 @@ async def api_blocklist_refresh(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "reloaded": reloaded})
 
 
-def _get_profile(cfg: JsonObj, data: JsonObj) -> JsonObj | None:
-    """Look up a profile by name from request data. Returns None if not found."""
-    profile_name = _as_str(data.get("profile", ""))
+def _get_profile_by_name(cfg: JsonObj, name: str) -> JsonObj | None:
+    """Look up a profile by name. Returns None if not found."""
     profiles = cfg.get("profiles")
-    if not isinstance(profiles, dict) or profile_name not in profiles:
+    if not isinstance(profiles, dict) or name not in profiles:
         return None
-    profile = profiles[profile_name]
+    profile = profiles[name]
     return _as_obj(profile) if isinstance(profile, dict) else None
 
 
-async def api_allowlist_save(request: Request) -> JSONResponse:
+async def api_profile_get(request: Request) -> JSONResponse:
+    """Return a single profile plus global blocklist metadata."""
+    name = request.path_params["name"]
+    cfg = config.load_config()
+    profile = _get_profile_by_name(cfg, name)
+    if profile is None:
+        return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=404)
+    return JSONResponse(
+        {
+            "ok": True,
+            "profile": profile,
+            "blockLists": cfg.get("blockLists", []),
+        }
+    )
+
+
+async def api_profile_allowlist_save(request: Request) -> JSONResponse:
+    name = request.path_params["name"]
     data = _validate_json_obj(await request.json())
     async with config.config_lock:
         cfg = config.load_config()
-        profile = _get_profile(cfg, data)
+        profile = _get_profile_by_name(cfg, name)
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         profile["allowList"] = data.get("domains", [])
@@ -604,11 +635,12 @@ async def api_allowlist_save(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def api_rules_save(request: Request) -> JSONResponse:
+async def api_profile_rules_save(request: Request) -> JSONResponse:
+    name = request.path_params["name"]
     data = _validate_json_obj(await request.json())
     async with config.config_lock:
         cfg = config.load_config()
-        profile = _get_profile(cfg, data)
+        profile = _get_profile_by_name(cfg, name)
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         profile["customRules"] = data.get("rules", [])
@@ -623,11 +655,12 @@ async def api_rules_save(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def api_regex_rules_save(request: Request) -> JSONResponse:
+async def api_profile_regex_save(request: Request) -> JSONResponse:
+    name = request.path_params["name"]
     data = _validate_json_obj(await request.json())
     async with config.config_lock:
         cfg = config.load_config()
-        profile = _get_profile(cfg, data)
+        profile = _get_profile_by_name(cfg, name)
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         block_rules = data.get("regexBlockRules", [])
@@ -666,11 +699,12 @@ async def api_regex_rules_save(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def api_rewrite_save(request: Request) -> JSONResponse:
+async def api_profile_rewrite_save(request: Request) -> JSONResponse:
+    name = request.path_params["name"]
     data = _validate_json_obj(await request.json())
     async with config.config_lock:
         cfg = config.load_config()
-        profile = _get_profile(cfg, data)
+        profile = _get_profile_by_name(cfg, name)
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         rewrites = _as_list(profile.setdefault("dnsRewrites", []))
@@ -701,11 +735,12 @@ async def api_rewrite_save(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def api_rewrite_delete(request: Request) -> JSONResponse:
+async def api_profile_rewrite_delete(request: Request) -> JSONResponse:
+    name = request.path_params["name"]
     data = _validate_json_obj(await request.json())
     async with config.config_lock:
         cfg = config.load_config()
-        profile = _get_profile(cfg, data)
+        profile = _get_profile_by_name(cfg, name)
         if profile is None:
             return JSONResponse({"ok": False, "error": "Profile not found"}, status_code=400)
         domain = _as_str(data.get("domain", "")).strip().lower().rstrip(".")

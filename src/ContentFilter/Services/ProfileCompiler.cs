@@ -71,7 +71,13 @@ public sealed class ProfileCompiler
             var mergedBlockedRegexes = baseCompiled.BlockedRegexes.Concat(compiled.BlockedRegexes).ToArray();
             var mergedAllowedRegexes = baseCompiled.AllowedRegexes.Concat(compiled.AllowedRegexes).ToArray();
 
-            result[name] = new CompiledProfile(mergedBlocked, mergedAllowed, mergedRewrites, mergedBlockedRegexes, mergedAllowedRegexes);
+            // Blocking addresses: inherit from base only if child config has no explicit setting (null)
+            var childConfig = config.Profiles[name];
+            var mergedAddresses = childConfig.BlockingAddresses is null && compiled.BlockingAddresses.IsEmpty
+                ? baseCompiled.BlockingAddresses
+                : compiled.BlockingAddresses;
+
+            result[name] = new CompiledProfile(mergedBlocked, mergedAllowed, mergedRewrites, mergedBlockedRegexes, mergedAllowedRegexes, mergedAddresses);
         }
 
         return result;
@@ -181,6 +187,10 @@ public sealed class ProfileCompiler
         var blockedRegexes = RegexCompiler.Compile(combinedBlockPatterns, _log);
         var allowedRegexes = RegexCompiler.Compile(profile.RegexAllowRules, _log);
 
-        return new CompiledProfile(blocked, allowed, rewrites, blockedRegexes, allowedRegexes);
+        // 7. Blocking addresses: profile-level if set, else fall back to global
+        var blockingAddresses = BlockingAddressSet.Parse(
+            profile.BlockingAddresses ?? config.BlockingAddresses, _log);
+
+        return new CompiledProfile(blocked, allowed, rewrites, blockedRegexes, allowedRegexes, blockingAddresses);
     }
 }

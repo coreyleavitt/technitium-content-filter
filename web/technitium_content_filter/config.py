@@ -42,6 +42,8 @@ _VALID_CONFIG_KEYS = frozenset(
         "blockLists",
         "_blockListsSeeded",
         "settings",
+        "allowTxtBlockingReport",
+        "blockingAddresses",
     }
 )
 

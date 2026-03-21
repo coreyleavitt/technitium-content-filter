@@ -56,7 +56,7 @@ class TestProfilesList:
 
 class TestProfileCreate:
     def test_add_profile(self, page, live_server, config_path):
-        """Create a new profile via modal."""
+        """Create a new profile via modal -- redirects to detail page."""
         page.goto(f"{live_server}/profiles")
         page.locator("#profilesList").wait_for()
 
@@ -68,35 +68,15 @@ class TestProfileCreate:
         page.locator("#profileName").fill("teenagers")
         page.locator("#profileDesc").fill("Teen profile")
 
-        page.locator("input[name='blockedServices'][value='youtube']").check()
-
         with page.expect_navigation():
             page.locator("#profileForm button[type='submit']").click()
 
-        assert page.get_by_text("teenagers").is_visible()
-        assert page.get_by_text("Teen profile").is_visible()
+        # Should redirect to the new profile's detail page
+        page.wait_for_url("**/profiles/teenagers")
 
         config = read_config(config_path)
         assert "teenagers" in config["profiles"]
-        assert config["profiles"]["teenagers"]["blockedServices"] == ["youtube"]
-
-    def test_add_profile_with_blocklist(self, page, live_server, config_path):
-        """Profile can reference global blocklists."""
-        page.goto(f"{live_server}/profiles")
-        page.locator("#profilesList").wait_for()
-
-        page.get_by_role("button", name="Add Profile").click()
-        page.locator("#profileModal").wait_for(state="visible")
-        page.locator("#profileName").fill("bl-test")
-
-        page.locator("input[name='profileBlockLists']").first.check()
-
-        with page.expect_navigation():
-            page.locator("#profileForm button[type='submit']").click()
-
-        config = read_config(config_path)
-        assert "bl-test" in config["profiles"]
-        assert len(config["profiles"]["bl-test"]["blockLists"]) == 1
+        assert config["profiles"]["teenagers"]["description"] == "Teen profile"
 
 
 class TestProfileEdit:
@@ -261,7 +241,7 @@ class TestProfileModal:
         assert page.locator("#profileModal.hidden").count() == 1
 
     def test_edit_modal_prefills(self, page, live_server):
-        """Edit modal pre-fills name, description, and service checkboxes."""
+        """Edit modal pre-fills name and description."""
         page.goto(f"{live_server}/profiles")
         page.locator("#profilesList").wait_for()
 
@@ -270,18 +250,3 @@ class TestProfileModal:
 
         assert page.locator("#profileName").input_value() == "kids"
         assert page.locator("#profileDesc").input_value() == "Children's profile"
-
-        yt = page.locator("input[name='blockedServices'][value='youtube']")
-        tt = page.locator("input[name='blockedServices'][value='tiktok']")
-        assert yt.is_checked()
-        assert tt.is_checked()
-
-    def test_custom_service_in_checkboxes(self, page, live_server):
-        """Custom services appear in the service checkboxes."""
-        page.goto(f"{live_server}/profiles")
-        page.locator("#profilesList").wait_for()
-
-        page.get_by_role("button", name="Add Profile").click()
-        page.locator("#profileModal").wait_for(state="visible")
-
-        assert page.locator("input[name='blockedServices'][value='my-streaming']").count() == 1

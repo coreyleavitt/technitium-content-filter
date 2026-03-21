@@ -1,4 +1,4 @@
-"""E2E tests for the Blocked Services filter page."""
+"""E2E tests for the blocked services section on the settings page."""
 
 import pytest
 
@@ -10,21 +10,21 @@ pytestmark = pytest.mark.e2e
 class TestServicesList:
     def test_custom_services_rendered(self, page, live_server):
         """Custom services section renders existing entries."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
         assert page.get_by_text("My Streaming").is_visible()
         assert page.get_by_text("stream.example.com").is_visible()
 
     def test_builtin_services_shown(self, page, live_server):
         """Built-in services section shows YouTube and TikTok."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         services = page.locator("summary:has-text('Built-in Services')").locator("..")
         assert services.get_by_text("YouTube", exact=True).is_visible()
         assert services.get_by_text("TikTok", exact=True).is_visible()
 
     def test_empty_custom_services(self, page, live_server_empty):
         """Empty config shows 'no custom services' message."""
-        page.goto(f"{live_server_empty}/filters/services")
+        page.goto(f"{live_server_empty}/settings")
         page.locator("#customServicesList").wait_for()
         assert page.get_by_text("No custom services defined").is_visible()
 
@@ -32,7 +32,7 @@ class TestServicesList:
 class TestServiceCreate:
     def test_add_custom_service(self, page, live_server, config_path):
         """Add a new custom service via modal."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.get_by_role("button", name="Add Custom Service").click()
@@ -56,7 +56,7 @@ class TestServiceCreate:
 
     def test_builtin_id_conflict(self, page, live_server):
         """Toast prevents saving a custom service with a built-in ID."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.get_by_role("button", name="Add Custom Service").click()
@@ -77,7 +77,7 @@ class TestServiceCreate:
 class TestServiceEdit:
     def test_edit_custom_service(self, page, live_server, config_path):
         """Edit an existing custom service."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.locator("#customServicesList button:has-text('Edit')").first.click()
@@ -98,7 +98,7 @@ class TestServiceEdit:
 class TestServiceDelete:
     def test_delete_custom_service(self, page, live_server, config_path):
         """Delete a custom service via confirm dialog."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.on("dialog", lambda dialog: dialog.accept())
@@ -112,7 +112,7 @@ class TestServiceDelete:
 class TestServiceDeleteCancel:
     def test_delete_cancel_preserves_service(self, page, live_server, config_path):
         """Dismissing the confirm dialog preserves the custom service."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.on("dialog", lambda dialog: dialog.dismiss())
@@ -125,7 +125,7 @@ class TestServiceDeleteCancel:
 class TestServiceModal:
     def test_modal_opens_and_closes(self, page, live_server):
         """Modal can be opened and cancelled."""
-        page.goto(f"{live_server}/filters/services")
+        page.goto(f"{live_server}/settings")
         page.locator("#customServicesList").wait_for()
 
         page.get_by_role("button", name="Add Custom Service").click()

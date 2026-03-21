@@ -44,7 +44,7 @@ class TestProfileSave:
         assert config["profiles"]["kids"]["description"] == "Updated"
         assert config["profiles"]["kids"]["blockedServices"] == []
 
-    def test_profile_with_all_fields(self, client, tmp_config):
+    def test_profile_with_overview_fields(self, client, tmp_config):
         resp = client.post(
             "/api/profiles",
             json={
@@ -52,9 +52,6 @@ class TestProfileSave:
                 "description": "Everything",
                 "blockedServices": ["youtube", "tiktok"],
                 "blockLists": ["https://example.com/list.txt"],
-                "allowList": ["safe.com"],
-                "customRules": ["evil.com", "@@exception.com"],
-                "dnsRewrites": [{"domain": "search.com", "answer": "1.2.3.4"}],
                 "schedule": {"mon": {"allDay": True}},
             },
         )
@@ -62,8 +59,25 @@ class TestProfileSave:
         config = read_config(tmp_config)
         profile = config["profiles"]["full"]
         assert len(profile["blockedServices"]) == 2
-        assert len(profile["dnsRewrites"]) == 1
         assert "mon" in profile["schedule"]
+
+    def test_profile_save_preserves_filter_data(self, client, tmp_config):
+        """Saving overview fields preserves existing allowlist/rules/rewrites."""
+        resp = client.post(
+            "/api/profiles",
+            json={
+                "name": "kids",
+                "description": "Updated",
+                "blockedServices": [],
+            },
+        )
+        assert resp.status_code == 200
+        config = read_config(tmp_config)
+        profile = config["profiles"]["kids"]
+        assert profile["description"] == "Updated"
+        # Filter data from existing profile is preserved
+        assert "khanacademy.org" in profile["allowList"]
+        assert len(profile["dnsRewrites"]) == 1
 
 
 @pytest.mark.api

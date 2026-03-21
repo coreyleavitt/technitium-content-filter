@@ -78,9 +78,8 @@ class TestRewriteRoundTrip:
         """Full rewrite lifecycle."""
         # Create
         client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "test.local",
                 "answer": "1.1.1.1",
             },
@@ -90,9 +89,8 @@ class TestRewriteRoundTrip:
 
         # Update
         client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "test.local",
                 "answer": "2.2.2.2",
             },
@@ -106,9 +104,8 @@ class TestRewriteRoundTrip:
         # Delete
         client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "test.local",
             },
         )

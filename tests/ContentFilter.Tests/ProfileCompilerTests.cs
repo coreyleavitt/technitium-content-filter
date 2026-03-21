@@ -682,6 +682,157 @@ public class ProfileCompilerTests
         }
     }
 
+    // --- Blocking address tests ---
+
+    [Fact]
+    public void BlockingAddresses_ProfileExplicit_UsedDirectly()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BlockingAddresses = ["10.0.0.1"],
+            Profiles =
+            {
+                ["test"] = new ProfileConfig
+                {
+                    BlockingAddresses = ["192.168.1.1"]
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["test"].BlockingAddresses.IPv4Addresses);
+        Assert.Equal(System.Net.IPAddress.Parse("192.168.1.1"), result["test"].BlockingAddresses.IPv4Addresses[0]);
+    }
+
+    [Fact]
+    public void BlockingAddresses_ProfileNull_InheritsFromGlobal()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BlockingAddresses = ["10.0.0.1"],
+            Profiles =
+            {
+                ["test"] = new ProfileConfig()  // BlockingAddresses is null
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["test"].BlockingAddresses.IPv4Addresses);
+        Assert.Equal(System.Net.IPAddress.Parse("10.0.0.1"), result["test"].BlockingAddresses.IPv4Addresses[0]);
+    }
+
+    [Fact]
+    public void BlockingAddresses_ProfileExplicitEmpty_ForcesNxdomain()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BlockingAddresses = ["10.0.0.1"],
+            Profiles =
+            {
+                ["test"] = new ProfileConfig
+                {
+                    BlockingAddresses = new List<string>()  // Explicit empty
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.True(result["test"].BlockingAddresses.IsEmpty);
+    }
+
+    [Fact]
+    public void BlockingAddresses_ProfileNull_InheritsFromBase()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BaseProfile = "base",
+            Profiles =
+            {
+                ["base"] = new ProfileConfig
+                {
+                    BlockingAddresses = ["10.0.0.1"]
+                },
+                ["kids"] = new ProfileConfig()  // BlockingAddresses is null
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["kids"].BlockingAddresses.IPv4Addresses);
+        Assert.Equal(System.Net.IPAddress.Parse("10.0.0.1"), result["kids"].BlockingAddresses.IPv4Addresses[0]);
+    }
+
+    [Fact]
+    public void BlockingAddresses_ProfileExplicit_OverridesBase()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BaseProfile = "base",
+            Profiles =
+            {
+                ["base"] = new ProfileConfig
+                {
+                    BlockingAddresses = ["10.0.0.1"]
+                },
+                ["kids"] = new ProfileConfig
+                {
+                    BlockingAddresses = ["192.168.1.1"]
+                }
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["kids"].BlockingAddresses.IPv4Addresses);
+        Assert.Equal(System.Net.IPAddress.Parse("192.168.1.1"), result["kids"].BlockingAddresses.IPv4Addresses[0]);
+    }
+
+    [Fact]
+    public void BlockingAddresses_InheritanceChain_ProfileNull_BaseNull_FallsToGlobal()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            BlockingAddresses = ["fd00::1"],
+            BaseProfile = "base",
+            Profiles =
+            {
+                ["base"] = new ProfileConfig(),  // null -> inherits global
+                ["kids"] = new ProfileConfig()    // null -> inherits base -> global
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.Single(result["base"].BlockingAddresses.IPv6Addresses);
+        Assert.Single(result["kids"].BlockingAddresses.IPv6Addresses);
+    }
+
+    [Fact]
+    public void BlockingAddresses_NoAddressesAnywhere_IsEmpty()
+    {
+        var compiler = CreateCompiler();
+        var config = new AppConfig
+        {
+            Profiles =
+            {
+                ["test"] = new ProfileConfig()
+            }
+        };
+
+        var result = compiler.CompileAll(config);
+
+        Assert.True(result["test"].BlockingAddresses.IsEmpty);
+    }
+
     [Fact]
     public void NullBlockListManager_SkipsBlocklists()
     {

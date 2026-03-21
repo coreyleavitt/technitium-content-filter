@@ -74,7 +74,7 @@ class TestXssClientName:
 class TestXssServiceName:
     def test_html_in_service_name_is_escaped(self, page, live_server_xss):
         """Custom service name with HTML is rendered safely."""
-        page.goto(f"{live_server_xss}/filters/services")
+        page.goto(f"{live_server_xss}/settings")
         page.locator("#customServicesList").wait_for()
         content = page.locator("#customServicesList").inner_html()
         # The <b> tag should not be rendered as actual HTML element

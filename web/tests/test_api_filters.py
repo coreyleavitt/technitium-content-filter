@@ -9,9 +9,8 @@ from tests.conftest import read_config
 class TestAllowlistSave:
     def test_update_allowlist(self, client, tmp_config):
         resp = client.post(
-            "/api/allowlists",
+            "/api/profiles/kids/allowlist",
             json={
-                "profile": "kids",
                 "domains": ["youtube.com", "youtubekids.com"],
             },
         )
@@ -20,15 +19,14 @@ class TestAllowlistSave:
         assert config["profiles"]["kids"]["allowList"] == ["youtube.com", "youtubekids.com"]
 
     def test_clear_allowlist(self, client, tmp_config):
-        client.post("/api/allowlists", json={"profile": "kids", "domains": []})
+        client.post("/api/profiles/kids/allowlist", json={"domains": []})
         config = read_config(tmp_config)
         assert config["profiles"]["kids"]["allowList"] == []
 
     def test_nonexistent_profile_returns_400(self, client):
         resp = client.post(
-            "/api/allowlists",
+            "/api/profiles/nonexistent/allowlist",
             json={
-                "profile": "nonexistent",
                 "domains": ["example.com"],
             },
         )
@@ -40,9 +38,8 @@ class TestAllowlistSave:
 class TestRulesSave:
     def test_update_rules(self, client, tmp_config):
         resp = client.post(
-            "/api/rules",
+            "/api/profiles/kids/rules",
             json={
-                "profile": "kids",
                 "rules": ["ads.com", "@@safe.ads.com", "# comment"],
             },
         )
@@ -52,15 +49,14 @@ class TestRulesSave:
         assert config["profiles"]["kids"]["customRules"] == expected
 
     def test_clear_rules(self, client, tmp_config):
-        client.post("/api/rules", json={"profile": "kids", "rules": []})
+        client.post("/api/profiles/kids/rules", json={"rules": []})
         config = read_config(tmp_config)
         assert config["profiles"]["kids"]["customRules"] == []
 
     def test_nonexistent_profile_returns_400(self, client):
         resp = client.post(
-            "/api/rules",
+            "/api/profiles/nonexistent/rules",
             json={
-                "profile": "nonexistent",
                 "rules": ["blocked.com"],
             },
         )
@@ -71,9 +67,8 @@ class TestRulesSave:
 class TestRewriteSave:
     def test_create_rewrite(self, client, tmp_config):
         resp = client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "internal.local",
                 "answer": "192.168.1.1",
             },
@@ -87,9 +82,8 @@ class TestRewriteSave:
 
     def test_update_existing_rewrite(self, client, tmp_config):
         client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "search.com",
                 "answer": "10.0.0.1",
             },
@@ -102,9 +96,8 @@ class TestRewriteSave:
 
     def test_domain_normalized_lowercase(self, client, tmp_config):
         client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "UPPER.COM",
                 "answer": "1.2.3.4",
             },
@@ -116,9 +109,8 @@ class TestRewriteSave:
 
     def test_domain_trailing_dot_stripped(self, client, tmp_config):
         client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "dotted.com.",
                 "answer": "1.2.3.4",
             },
@@ -130,9 +122,8 @@ class TestRewriteSave:
 
     def test_empty_domain_returns_400(self, client):
         resp = client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "",
                 "answer": "1.2.3.4",
             },
@@ -142,9 +133,8 @@ class TestRewriteSave:
 
     def test_empty_answer_returns_400(self, client):
         resp = client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "example.com",
                 "answer": "",
             },
@@ -153,9 +143,8 @@ class TestRewriteSave:
 
     def test_whitespace_only_domain_returns_400(self, client):
         resp = client.post(
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "   ",
                 "answer": "1.2.3.4",
             },
@@ -164,9 +153,8 @@ class TestRewriteSave:
 
     def test_nonexistent_profile_returns_400(self, client):
         resp = client.post(
-            "/api/rewrites",
+            "/api/profiles/nonexistent/rewrites",
             json={
-                "profile": "nonexistent",
                 "domain": "example.com",
                 "answer": "1.2.3.4",
             },
@@ -179,9 +167,8 @@ class TestRewriteDelete:
     def test_delete_rewrite(self, client, tmp_config):
         resp = client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "search.com",
             },
         )
@@ -193,9 +180,8 @@ class TestRewriteDelete:
     def test_delete_case_insensitive(self, client, tmp_config):
         client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "SEARCH.COM",
             },
         )
@@ -206,9 +192,8 @@ class TestRewriteDelete:
     def test_delete_with_trailing_dot(self, client, tmp_config):
         client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "search.com.",
             },
         )
@@ -219,9 +204,8 @@ class TestRewriteDelete:
     def test_delete_nonexistent_profile_returns_400(self, client):
         resp = client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/nonexistent/rewrites",
             json={
-                "profile": "nonexistent",
                 "domain": "example.com",
             },
         )
@@ -230,9 +214,8 @@ class TestRewriteDelete:
     def test_delete_nonexistent_domain_no_error(self, client):
         resp = client.request(
             "DELETE",
-            "/api/rewrites",
+            "/api/profiles/kids/rewrites",
             json={
-                "profile": "kids",
                 "domain": "doesnt-exist.com",
             },
         )

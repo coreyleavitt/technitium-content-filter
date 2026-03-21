@@ -149,8 +149,9 @@ class TestProfileSaveSchema:
         assert resp.status_code == 200
         config = read_config(tmp_config)
         profile = config["profiles"]["test-schema"]
-        assert profile["unexpected_field"] == "injected"
-        assert profile["another"] == 42
+        # Only overview fields are persisted; arbitrary keys are ignored
+        assert "blockedServices" in profile
+        assert "unexpected_field" not in profile
 
 
 @pytest.mark.api

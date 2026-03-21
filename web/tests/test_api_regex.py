@@ -9,9 +9,8 @@ from tests.conftest import read_config
 class TestRegexRulesSave:
     def test_save_valid_regex_rules(self, client, tmp_config):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": [r"^ads?\d*\.", r"tracking\."],
                 "regexAllowRules": [r"safe\.example\.com"],
             },
@@ -26,9 +25,8 @@ class TestRegexRulesSave:
 
     def test_save_invalid_regex_returns_400(self, client):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": [r"[invalid"],
                 "regexAllowRules": [],
             },
@@ -38,9 +36,8 @@ class TestRegexRulesSave:
 
     def test_nonexistent_profile_returns_400(self, client):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/nonexistent/regex",
             json={
-                "profile": "nonexistent",
                 "regexBlockRules": [],
                 "regexAllowRules": [],
             },
@@ -51,18 +48,16 @@ class TestRegexRulesSave:
     def test_clear_regex_rules(self, client, tmp_config):
         # First set some rules
         client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": [r"test\."],
                 "regexAllowRules": [r"safe\."],
             },
         )
         # Then clear them
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": [],
                 "regexAllowRules": [],
             },
@@ -74,9 +69,8 @@ class TestRegexRulesSave:
 
     def test_comment_lines_pass_validation(self, client, tmp_config):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": ["# this is a comment", r"valid\."],
                 "regexAllowRules": [],
             },
@@ -85,9 +79,8 @@ class TestRegexRulesSave:
 
     def test_empty_lines_pass_validation(self, client, tmp_config):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": ["", "  ", r"valid\."],
                 "regexAllowRules": [],
             },
@@ -96,9 +89,8 @@ class TestRegexRulesSave:
 
     def test_invalid_allow_pattern_returns_400(self, client):
         resp = client.post(
-            "/api/regex-rules",
+            "/api/profiles/kids/regex",
             json={
-                "profile": "kids",
                 "regexBlockRules": [],
                 "regexAllowRules": [r"(unclosed"],
             },

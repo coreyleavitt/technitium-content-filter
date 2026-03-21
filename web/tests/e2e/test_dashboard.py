@@ -78,54 +78,6 @@ class TestProtectionToggle:
         assert config["enableBlocking"] is True
 
 
-class TestSettings:
-    def test_save_default_profile(self, page, live_server, config_path):
-        """Settings form saves default profile."""
-        page.goto(f"{live_server}/")
-        page.wait_for_load_state("networkidle")
-
-        page.locator("summary:has-text('Settings')").click()
-        page.locator("#settingsForm").wait_for(state="visible")
-
-        page.locator("#defaultProfile").select_option("kids")
-        with page.expect_navigation():
-            page.locator("#settingsForm button[type='submit']").click()
-
-        config = read_config(config_path)
-        assert config["defaultProfile"] == "kids"
-
-    def test_save_base_profile(self, page, live_server, config_path):
-        """Settings form saves base profile."""
-        page.goto(f"{live_server}/")
-        page.wait_for_load_state("networkidle")
-
-        page.locator("summary:has-text('Settings')").click()
-        page.locator("#settingsForm").wait_for(state="visible")
-
-        page.locator("#baseProfile").select_option("kids")
-        with page.expect_navigation():
-            page.locator("#settingsForm button[type='submit']").click()
-
-        config = read_config(config_path)
-        assert config["baseProfile"] == "kids"
-
-    def test_save_schedule_all_day(self, page, live_server, config_path):
-        """Settings form saves scheduleAllDay toggle."""
-        page.goto(f"{live_server}/")
-        page.wait_for_load_state("networkidle")
-
-        page.locator("summary:has-text('Settings')").click()
-        page.locator("#settingsForm").wait_for(state="visible")
-
-        # Sample config has scheduleAllDay=False, toggle it on
-        page.locator("#scheduleAllDay").check()
-        with page.expect_navigation():
-            page.locator("#settingsForm button[type='submit']").click()
-
-        config = read_config(config_path)
-        assert config["scheduleAllDay"] is True
-
-
 class TestDashboardEmpty:
     def test_empty_dashboard(self, page, live_server_empty):
         """Dashboard with no clients/profiles shows empty state messages."""
@@ -187,16 +139,3 @@ class TestNavigation:
         desktop_nav.get_by_role("link", name="Clients").click()
         page.wait_for_load_state("networkidle")
         assert "/clients" in page.url
-
-    def test_filters_dropdown(self, page, live_server):
-        """Filters dropdown opens and shows sub-links."""
-        page.goto(f"{live_server}/")
-        page.locator("#filtersDropdown button").click()
-        dropdown = page.locator("#filtersMenu")
-        dropdown.wait_for(state="visible")
-        # Scope assertions to the desktop dropdown menu to avoid mobile nav duplicates
-        assert dropdown.get_by_role("link", name="DNS Blocklists").is_visible()
-        assert dropdown.get_by_role("link", name="DNS Allowlists").is_visible()
-        assert dropdown.get_by_role("link", name="Blocked Services").is_visible()
-        assert dropdown.get_by_role("link", name="Custom Filtering Rules").is_visible()
-        assert dropdown.get_by_role("link", name="DNS Rewrites").is_visible()

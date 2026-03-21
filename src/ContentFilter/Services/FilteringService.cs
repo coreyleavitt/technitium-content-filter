@@ -222,6 +222,7 @@ public sealed class FilteringService
                     Source = BlockSource.DomainBlocklist,
                     MatchedDomain = matchedDomain
                 },
+                BlockingAddresses = profile.BlockingAddresses,
                 DebugSummary = debugPrefix + " BLOCKED"
             };
         }
@@ -242,6 +243,7 @@ public sealed class FilteringService
                     Source = BlockSource.RegexBlocklist,
                     MatchedRegex = matchedRegex
                 },
+                BlockingAddresses = profile.BlockingAddresses,
                 DebugSummary = debugPrefix + " BLOCKED (regex)"
             };
         }

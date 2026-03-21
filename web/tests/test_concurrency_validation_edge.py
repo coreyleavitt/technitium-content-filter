@@ -885,28 +885,28 @@ class TestApiContentTypeHeaders:
 
     def test_allowlist_save_content_type(self, client):
         resp = client.post(
-            "/api/allowlists",
-            json={"profile": "kids", "domains": ["safe.com"]},
+            "/api/profiles/kids/allowlist",
+            json={"domains": ["safe.com"]},
         )
         assert "application/json" in resp.headers["content-type"]
 
     def test_rules_save_content_type(self, client):
         resp = client.post(
-            "/api/rules",
-            json={"profile": "kids", "rules": ["blocked.com"]},
+            "/api/profiles/kids/rules",
+            json={"rules": ["blocked.com"]},
         )
         assert "application/json" in resp.headers["content-type"]
 
     def test_rewrite_save_content_type(self, client):
         resp = client.post(
-            "/api/rewrites",
-            json={"profile": "kids", "domain": "ct.com", "answer": "1.1.1.1"},
+            "/api/profiles/kids/rewrites",
+            json={"domain": "ct.com", "answer": "1.1.1.1"},
         )
         assert "application/json" in resp.headers["content-type"]
 
     def test_rewrite_delete_content_type(self, client):
         resp = client.request(
-            "DELETE", "/api/rewrites", json={"profile": "kids", "domain": "nonexistent"}
+            "DELETE", "/api/profiles/kids/rewrites", json={"domain": "nonexistent"}
         )
         assert "application/json" in resp.headers["content-type"]
 
@@ -987,17 +987,11 @@ class TestRequestBodySizeLimits:
     def test_large_allowlist(self, client, tmp_config):
         """Profile with many allowlist entries is accepted."""
         domains = [f"domain-{i}.example.com" for i in range(500)]
+        # Create profile first
+        client.post("/api/profiles", json={"name": "large-allow"})
         resp = client.post(
-            "/api/profiles",
-            json={
-                "name": "large-allow",
-                "description": "",
-                "blockedServices": [],
-                "blockLists": [],
-                "allowList": domains,
-                "customRules": [],
-                "dnsRewrites": [],
-            },
+            "/api/profiles/large-allow/allowlist",
+            json={"domains": domains},
         )
         assert resp.status_code == 200
         config = read_config(tmp_config)
@@ -1006,17 +1000,11 @@ class TestRequestBodySizeLimits:
     def test_large_custom_rules(self, client, tmp_config):
         """Profile with many custom rules is accepted."""
         rules = [f"rule-{i}.example.com" for i in range(500)]
+        # Create profile first
+        client.post("/api/profiles", json={"name": "large-rules"})
         resp = client.post(
-            "/api/profiles",
-            json={
-                "name": "large-rules",
-                "description": "",
-                "blockedServices": [],
-                "blockLists": [],
-                "allowList": [],
-                "customRules": rules,
-                "dnsRewrites": [],
-            },
+            "/api/profiles/large-rules/rules",
+            json={"rules": rules},
         )
         assert resp.status_code == 200
         config = read_config(tmp_config)
@@ -1072,8 +1060,8 @@ class TestErrorResponseFormatConsistency:
         assert len(data["error"]) > 0
 
     def test_allowlist_missing_profile_error_format(self, client):
-        """POST /api/allowlists with nonexistent profile returns consistent error."""
-        resp = client.post("/api/allowlists", json={"profile": "nonexistent", "domains": ["x.com"]})
+        """POST /api/profiles/{name}/allowlist with nonexistent profile returns consistent error."""
+        resp = client.post("/api/profiles/nonexistent/allowlist", json={"domains": ["x.com"]})
         assert resp.status_code == 400
         data = resp.json()
         assert data["ok"] is False
@@ -1081,18 +1069,18 @@ class TestErrorResponseFormatConsistency:
         assert isinstance(data["error"], str)
 
     def test_rules_missing_profile_error_format(self, client):
-        """POST /api/rules with nonexistent profile returns consistent error."""
-        resp = client.post("/api/rules", json={"profile": "nonexistent", "rules": ["x.com"]})
+        """POST /api/profiles/{name}/rules with nonexistent profile returns consistent error."""
+        resp = client.post("/api/profiles/nonexistent/rules", json={"rules": ["x.com"]})
         assert resp.status_code == 400
         data = resp.json()
         assert data["ok"] is False
         assert "error" in data
 
     def test_rewrite_missing_profile_error_format(self, client):
-        """POST /api/rewrites with nonexistent profile returns consistent error."""
+        """POST /api/profiles/{name}/rewrites with nonexistent profile returns consistent error."""
         resp = client.post(
-            "/api/rewrites",
-            json={"profile": "nonexistent", "domain": "x.com", "answer": "1.1.1.1"},
+            "/api/profiles/nonexistent/rewrites",
+            json={"domain": "x.com", "answer": "1.1.1.1"},
         )
         assert resp.status_code == 400
         data = resp.json()
@@ -1100,9 +1088,9 @@ class TestErrorResponseFormatConsistency:
         assert "error" in data
 
     def test_rewrite_delete_missing_profile_error_format(self, client):
-        """DELETE /api/rewrites with nonexistent profile returns consistent error."""
+        """DELETE rewrites with nonexistent profile returns consistent error."""
         resp = client.request(
-            "DELETE", "/api/rewrites", json={"profile": "nonexistent", "domain": "x.com"}
+            "DELETE", "/api/profiles/nonexistent/rewrites", json={"domain": "x.com"}
         )
         assert resp.status_code == 400
         data = resp.json()
@@ -1110,20 +1098,16 @@ class TestErrorResponseFormatConsistency:
         assert "error" in data
 
     def test_rewrite_empty_domain_error_format(self, client):
-        """POST /api/rewrites with empty domain returns consistent error."""
-        resp = client.post(
-            "/api/rewrites", json={"profile": "kids", "domain": "", "answer": "1.1.1.1"}
-        )
+        """POST /api/profiles/{name}/rewrites with empty domain returns consistent error."""
+        resp = client.post("/api/profiles/kids/rewrites", json={"domain": "", "answer": "1.1.1.1"})
         assert resp.status_code == 400
         data = resp.json()
         assert data["ok"] is False
         assert "error" in data
 
     def test_rewrite_empty_answer_error_format(self, client):
-        """POST /api/rewrites with empty answer returns consistent error."""
-        resp = client.post(
-            "/api/rewrites", json={"profile": "kids", "domain": "test.com", "answer": ""}
-        )
+        """POST /api/profiles/{name}/rewrites with empty answer returns consistent error."""
+        resp = client.post("/api/profiles/kids/rewrites", json={"domain": "test.com", "answer": ""})
         assert resp.status_code == 400
         data = resp.json()
         assert data["ok"] is False
@@ -1171,10 +1155,10 @@ class TestErrorResponseFormatConsistency:
         """Error responses from known validation paths return JSON."""
         error_cases = [
             ("POST", "/api/blocklists", {"url": ""}),
-            ("POST", "/api/allowlists", {"profile": "no-such", "domains": []}),
-            ("POST", "/api/rules", {"profile": "no-such", "rules": []}),
-            ("POST", "/api/rewrites", {"profile": "no-such", "domain": "x", "answer": "y"}),
-            ("DELETE", "/api/rewrites", {"profile": "no-such", "domain": "x"}),
+            ("POST", "/api/profiles/no-such/allowlist", {"domains": []}),
+            ("POST", "/api/profiles/no-such/rules", {"rules": []}),
+            ("POST", "/api/profiles/no-such/rewrites", {"domain": "x", "answer": "y"}),
+            ("DELETE", "/api/profiles/no-such/rewrites", {"domain": "x"}),
         ]
         for method, path, body in error_cases:
             if method == "POST":

@@ -30,6 +30,9 @@ public sealed class ProfileConfig
     [JsonPropertyName("dnsRewrites")]
     public List<DnsRewriteConfig> DnsRewrites { get; set; } = new();
 
+    [JsonPropertyName("blockingAddresses")]
+    public List<string>? BlockingAddresses { get; set; }
+
     /// <summary>
     /// Schedule keyed by day abbreviation (mon, tue, etc.).
     /// Each day can have one or more time windows.

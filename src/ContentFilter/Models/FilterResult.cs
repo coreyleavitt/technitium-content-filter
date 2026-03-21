@@ -19,5 +19,6 @@ public sealed class FilterResult
     public string QuestionDomain { get; init; } = "";
     public BlockReason? BlockReason { get; init; }
     public DnsRewriteConfig? Rewrite { get; init; }
+    public BlockingAddressSet? BlockingAddresses { get; init; }
     public string DebugSummary { get; init; } = "";
 }

@@ -6,15 +6,16 @@ const API_PATHS = {
     profiles: '/api/profiles',
     profilesRename: '/api/profiles/rename',
     clients: '/api/clients',
-    allowlists: '/api/allowlists',
-    rules: '/api/rules',
-    rewrites: '/api/rewrites',
     blocklists: '/api/blocklists',
     blocklistsRefresh: '/api/blocklists/refresh',
     customServices: '/api/custom-services',
     testDomain: '/api/test-domain',
-    regexRules: '/api/regex-rules',
 };
+
+// Helper to construct per-profile API paths
+function profileApiPath(name, sub) {
+    return '/api/profiles/' + encodeURIComponent(name) + '/' + sub;
+}
 
 // #92: Global error boundary
 window.onerror = function (message) {
@@ -120,107 +121,6 @@ function setButtonLoading(btn, loading, originalText) {
     } else {
         btn.textContent = btn._originalText || originalText || 'Save';
     }
-}
-
-// #75: Shared domain list editor logic for allowlists and rules
-function initDomainListEditor(opts) {
-    // opts: { textareaId, countId, countLabel, profileKey, apiPath, filterComments }
-    const pageData = JSON.parse(document.getElementById('page-data').textContent);
-    const profiles = pageData.profiles || {};
-    let currentProfile = null;
-
-    function loadProfile(name) {
-        currentProfile = name;
-        location.hash = name;
-        const profile = profiles[name];
-        const items = profile?.[opts.profileKey] || [];
-        document.getElementById(opts.textareaId).value = items.join('\n');
-        updateCount();
-    }
-
-    function updateCount() {
-        let lines = document.getElementById(opts.textareaId).value
-            .split('\n').map(function (s) { return s.trim(); });
-        if (opts.filterComments) {
-            lines = lines.filter(function (s) { return s && !s.startsWith('#'); });
-        } else {
-            lines = lines.filter(Boolean);
-        }
-        const count = lines.length;
-        document.getElementById(opts.countId).textContent = count + ' ' + opts.countLabel + (count !== 1 ? 's' : '');
-    }
-
-    document.getElementById(opts.textareaId).addEventListener('input', updateCount);
-
-    async function save() {
-        if (!currentProfile) return;
-        const saveBtn = document.querySelector('[onclick*="save"]') || document.querySelector('button[type="submit"]');
-        if (saveBtn) setButtonLoading(saveBtn, true);
-        try {
-            const items = document.getElementById(opts.textareaId).value
-                .split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
-            await apiCall('POST', opts.apiPath, { profile: currentProfile, [opts.payloadKey]: items });
-            profiles[currentProfile][opts.profileKey] = items;
-            updateCount();
-            showToast(opts.countLabel.charAt(0).toUpperCase() + opts.countLabel.slice(1) + 's saved successfully.', 'success');
-        } catch (err) {
-            // error already shown by apiCall
-        } finally {
-            if (saveBtn) setButtonLoading(saveBtn, false);
-        }
-    }
-
-    initProfilePicker('profilePicker', profiles, loadProfile);
-
-    return { save, loadProfile, profiles, getCurrentProfile: function () { return currentProfile; } };
-}
-
-// #74: initProfilePicker with AbortController to prevent listener leaks
-let _profilePickerAbort = null;
-
-function initProfilePicker(selectId, profiles, onChange) {
-    // Clean up previous listeners
-    if (_profilePickerAbort) {
-        _profilePickerAbort.abort();
-    }
-    _profilePickerAbort = new AbortController();
-
-    const select = document.getElementById(selectId);
-    const names = Object.keys(profiles);
-    select.innerHTML = '';
-    if (names.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No profiles available';
-        select.appendChild(opt);
-        select.disabled = true;
-        const helpDiv = document.createElement('div');
-        helpDiv.className = 'mt-2 text-sm text-gray-500';
-        helpDiv.innerHTML = 'Create a profile on the <a href="' + BASE_PATH + '/profiles" class="text-indigo-600 hover:text-indigo-500 font-medium">Profiles page</a> to get started.';
-        select.parentNode.appendChild(helpDiv);
-        return null;
-    }
-    for (const name of names) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-    }
-
-    // #89: Named handler for removability
-    function handleProfileChange() {
-        onChange(select.value);
-    }
-    select.addEventListener('change', handleProfileChange, { signal: _profilePickerAbort.signal });
-
-    // Restore from URL hash or use first profile
-    const hash = location.hash.slice(1);
-    if (hash && profiles[hash]) {
-        select.value = hash;
-    }
-    const selected = select.value;
-    onChange(selected);
-    return selected;
 }
 
 // #88: Keyboard accessibility helper for clickable non-button elements

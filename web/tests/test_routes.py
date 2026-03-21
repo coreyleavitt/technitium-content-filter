@@ -20,47 +20,63 @@ class TestPageRoutes:
         assert "kids" in resp.text
         assert "adults" in resp.text
 
+    def test_profile_detail(self, client):
+        resp = client.get("/profiles/kids")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "kids" in resp.text
+
+    def test_profile_detail_nonexistent_redirects(self, client):
+        resp = client.get("/profiles/nonexistent", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/profiles" in resp.headers["location"]
+
     def test_clients(self, client):
         resp = client.get("/clients")
         assert resp.status_code == 200
         assert "iPad" in resp.text
         assert "Laptop" in resp.text
 
-    def test_services_redirects(self, client):
+    def test_settings(self, client):
+        resp = client.get("/settings")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "Settings" in resp.text
+
+    def test_services_redirects_to_settings(self, client):
         resp = client.get("/services", follow_redirects=False)
         assert resp.status_code == 301
-        assert "/filters/services" in resp.headers["location"]
+        assert "/settings" in resp.headers["location"]
 
-    def test_filters_blocklists(self, client):
-        resp = client.get("/filters/blocklists")
-        assert resp.status_code == 200
-        assert "example.com/list.txt" in resp.text
+    def test_filters_blocklists_redirects(self, client):
+        resp = client.get("/filters/blocklists", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/settings" in resp.headers["location"]
 
-    def test_filters_allowlists(self, client):
-        resp = client.get("/filters/allowlists")
-        assert resp.status_code == 200
-        assert "kids" in resp.text
+    def test_filters_allowlists_redirects(self, client):
+        resp = client.get("/filters/allowlists", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/profiles" in resp.headers["location"]
 
-    def test_filters_services(self, client):
-        resp = client.get("/filters/services")
-        assert resp.status_code == 200
-        assert "youtube" in resp.text.lower() or "YouTube" in resp.text
+    def test_filters_services_redirects(self, client):
+        resp = client.get("/filters/services", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/settings" in resp.headers["location"]
 
-    def test_filters_rules(self, client):
-        resp = client.get("/filters/rules")
-        assert resp.status_code == 200
-        assert "kids" in resp.text
+    def test_filters_rules_redirects(self, client):
+        resp = client.get("/filters/rules", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/profiles" in resp.headers["location"]
 
-    def test_filters_regex(self, client):
-        resp = client.get("/filters/regex")
-        assert resp.status_code == 200
-        assert "Regex Rules" in resp.text
-        assert "kids" in resp.text
+    def test_filters_regex_redirects(self, client):
+        resp = client.get("/filters/regex", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/profiles" in resp.headers["location"]
 
-    def test_filters_rewrites(self, client):
-        resp = client.get("/filters/rewrites")
-        assert resp.status_code == 200
-        assert "kids" in resp.text
+    def test_filters_rewrites_redirects(self, client):
+        resp = client.get("/filters/rewrites", follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/profiles" in resp.headers["location"]
 
 
 @pytest.mark.route
@@ -106,22 +122,6 @@ class TestEmptyConfig:
         resp = client_empty.get("/clients")
         assert resp.status_code == 200
 
-    def test_filters_blocklists_empty(self, client_empty):
-        resp = client_empty.get("/filters/blocklists")
-        assert resp.status_code == 200
-
-    def test_filters_allowlists_empty(self, client_empty):
-        resp = client_empty.get("/filters/allowlists")
-        assert resp.status_code == 200
-
-    def test_filters_services_empty(self, client_empty):
-        resp = client_empty.get("/filters/services")
-        assert resp.status_code == 200
-
-    def test_filters_rules_empty(self, client_empty):
-        resp = client_empty.get("/filters/rules")
-        assert resp.status_code == 200
-
-    def test_filters_rewrites_empty(self, client_empty):
-        resp = client_empty.get("/filters/rewrites")
+    def test_settings_empty(self, client_empty):
+        resp = client_empty.get("/settings")
         assert resp.status_code == 200
