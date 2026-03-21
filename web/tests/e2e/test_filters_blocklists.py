@@ -186,7 +186,8 @@ class TestBlocklistType:
         with page.expect_navigation():
             page.locator("#blocklistForm button[type='submit']").click()
 
-        assert page.get_by_text("Regex", exact=True).is_visible()
+        table = page.locator("#blocklistsList")
+        assert table.get_by_text("Regex", exact=True).is_visible()
 
         config = read_config(config_path)
         added = next(

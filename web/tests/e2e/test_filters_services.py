@@ -18,9 +18,12 @@ class TestServicesList:
     def test_builtin_services_shown(self, page, live_server):
         """Built-in services section shows YouTube and TikTok."""
         page.goto(f"{live_server}/settings")
-        services = page.locator("summary:has-text('Built-in Services')").locator("..")
-        assert services.get_by_text("YouTube", exact=True).is_visible()
-        assert services.get_by_text("TikTok", exact=True).is_visible()
+        page.locator("#customServicesList").wait_for()
+        # Open the collapsed details element
+        page.locator("summary:has-text('Built-in Services')").click()
+        details = page.locator("summary:has-text('Built-in Services')").locator("..")
+        assert details.get_by_text("YouTube", exact=True).is_visible()
+        assert details.get_by_text("TikTok", exact=True).is_visible()
 
     def test_empty_custom_services(self, page, live_server_empty):
         """Empty config shows 'no custom services' message."""
