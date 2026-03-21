@@ -13,10 +13,10 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app
 COPY pyproject.toml uv.lock* ./
+RUN uv sync --no-dev --no-install-project
 COPY technitium_content_filter/ technitium_content_filter/
-RUN uv sync --no-dev
 
 COPY --from=tailwind-build /build/static/css/styles.css ./technitium_content_filter/static/css/styles.css
 
 EXPOSE 8000
-CMD ["uv", "run", "technitium-content-filter"]
+CMD ["uv", "run", "--no-project", "python", "-m", "technitium_content_filter"]
