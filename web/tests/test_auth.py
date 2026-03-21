@@ -6,6 +6,8 @@ import pytest
 import respx
 from httpx import Response
 
+from technitium_content_filter.config import _hkdf_sha256
+
 
 @pytest.mark.unit
 class TestAuthRedirects:
@@ -203,3 +205,34 @@ class TestAlreadyAuthenticated:
         resp = client_with_auth.get("/login", follow_redirects=False)
         assert resp.status_code == 302
         assert resp.headers["location"].endswith("/")
+
+
+@pytest.mark.unit
+class TestTokenAutoLogin:
+    """Auto-login via derived auth passthrough token (#124)."""
+
+    def test_valid_derived_token_creates_session(self, client_with_auth):
+        derived = _hkdf_sha256(b"test-token", b"navbar-auth").hex()
+        resp = client_with_auth.get(f"/?token={derived}", follow_redirects=False)
+        assert resp.status_code == 302
+        # Redirects to strip the token from URL
+        assert "token" not in resp.headers["location"]
+
+        # Session is now active
+        resp = client_with_auth.get("/", follow_redirects=False)
+        assert resp.status_code == 200
+
+    def test_raw_api_token_rejected(self, client_with_auth):
+        resp = client_with_auth.get("/?token=test-token", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["location"]
+
+    def test_invalid_token_redirects_to_login(self, client_with_auth):
+        resp = client_with_auth.get("/?token=bad-token", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["location"]
+
+    def test_empty_token_redirects_to_login(self, client_with_auth):
+        resp = client_with_auth.get("/?token=", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["location"]

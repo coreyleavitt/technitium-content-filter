@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import hmac
 import os
 import time
 from collections import defaultdict
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -123,11 +124,30 @@ class AuthMiddleware:
         user = session.get("user")
         login_time: float = session.get("login_time", 0)
 
+        # Auto-login via Technitium API token in query string
+        if not user or (time.time() - login_time > config.SESSION_EXPIRY):
+            query_string = scope.get("query_string", b"").decode()
+            params = parse_qs(query_string)
+            token_values = params.get("token", [])
+            if (
+                token_values
+                and config.AUTH_PASSTHROUGH_TOKEN
+                and hmac.compare_digest(token_values[0], config.AUTH_PASSTHROUGH_TOKEN)
+            ):
+                if "session" in scope:
+                    scope["session"]["user"] = "admin"
+                    scope["session"]["login_time"] = time.time()
+                # Redirect to strip the token from the URL
+                base = config.BASE_PATH.rstrip("/")
+                resp: Response = RedirectResponse(url=f"{base}{path}", status_code=302)
+                await resp(scope, receive, send)
+                return
+
         if not user or (time.time() - login_time > config.SESSION_EXPIRY):
             if "session" in scope:
                 scope["session"].clear()
             if path.startswith("/api/"):
-                resp: Response = JSONResponse(
+                resp = JSONResponse(
                     {"ok": False, "error": "Authentication required"},
                     status_code=401,
                 )

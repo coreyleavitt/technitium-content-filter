@@ -113,10 +113,16 @@ def make_client(tmp_config):
         if config_data is not None:
             tmp_config.write_text(json.dumps(config_data, indent=2))
         services_path = tmp_config.parent / "blocked-services.json"
+        from technitium_content_filter.config import _hkdf_sha256
+
+        # Compute derived tokens from the test token
+        test_token = "test-token"
+        auth_passthrough = _hkdf_sha256(test_token.encode(), b"navbar-auth").hex()
         patches = [
             patch("technitium_content_filter.config.CONFIG_PATH", tmp_config),
             patch("technitium_content_filter.config.BLOCKED_SERVICES_PATH", services_path),
-            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"),
+            patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", test_token),
+            patch("technitium_content_filter.config.AUTH_PASSTHROUGH_TOKEN", auth_passthrough),
             patch("technitium_content_filter.config.TECHNITIUM_URL", "http://technitium-mock:5380"),
             patch("technitium_content_filter.config.AUTH_DISABLED", auth_disabled),
         ]

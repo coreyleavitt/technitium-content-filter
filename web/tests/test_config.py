@@ -246,3 +246,52 @@ class TestSeedDefaultBlocklists:
             changed = _seed_default_blocklists(config)
 
         assert changed is False
+
+
+@pytest.mark.unit
+class TestHKDF:
+    def test_output_is_64_char_hex(self):
+        with patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"):
+            from technitium_content_filter.config import _derive_key
+
+            result = _derive_key("test-purpose")
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_different_purposes_produce_different_keys(self):
+        from technitium_content_filter.config import _hkdf_sha256
+
+        ikm = b"test-token"
+        key_a = _hkdf_sha256(ikm, b"purpose-a").hex()
+        key_b = _hkdf_sha256(ikm, b"purpose-b").hex()
+        assert key_a != key_b
+
+    def test_derivation_is_deterministic(self):
+        from technitium_content_filter.config import _hkdf_sha256
+
+        ikm = b"test-token"
+        result1 = _hkdf_sha256(ikm, b"session-signing").hex()
+        result2 = _hkdf_sha256(ikm, b"session-signing").hex()
+        assert result1 == result2
+
+    def test_session_secret_uses_hkdf(self):
+        from technitium_content_filter.config import _derive_key, _get_session_secret
+
+        with patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"):
+            secret = _get_session_secret()
+            expected = _derive_key("session-signing")
+        assert secret == expected
+
+    def test_auth_passthrough_token_matches_derive_key(self):
+        from technitium_content_filter.config import _derive_key, _hkdf_sha256
+
+        with patch("technitium_content_filter.config.TECHNITIUM_API_TOKEN", "test-token"):
+            expected = _derive_key("navbar-auth")
+            actual = _hkdf_sha256(b"test-token", b"navbar-auth").hex()
+        assert expected == actual
+
+    def test_hkdf_rejects_length_over_32(self):
+        from technitium_content_filter.config import _hkdf_sha256
+
+        with pytest.raises(ValueError, match="at most 32 bytes"):
+            _hkdf_sha256(b"key", b"info", length=33)

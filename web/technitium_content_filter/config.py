@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
+import hmac as hmac_mod
 import json
 import logging
 import os
@@ -52,15 +52,28 @@ SESSION_EXPIRY = int(os.environ.get("SESSION_EXPIRY", "86400"))  # 24 hours
 AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "").lower() in ("1", "true", "yes")
 LOGIN_RATE_LIMIT = 10  # max login attempts per minute per IP
 
+_HKDF_SALT = b"content-filter-hkdf-v1"
+
+
+def _hkdf_sha256(ikm: bytes, info: bytes, length: int = 32) -> bytes:
+    """RFC 5869 HKDF using HMAC-SHA256 (single-block expand)."""
+    prk = hmac_mod.new(_HKDF_SALT, ikm, "sha256").digest()
+    if length > 32:
+        raise ValueError("Single-block HKDF-Expand supports at most 32 bytes")
+    return hmac_mod.new(prk, info + b"\x01", "sha256").digest()[:length]
+
+
+def _derive_key(purpose: str) -> str:
+    """Derive a hex key from the API token for the given purpose."""
+    return _hkdf_sha256(TECHNITIUM_API_TOKEN.encode(), purpose.encode()).hex()
+
 
 def _get_session_secret() -> str:
     env_secret = os.environ.get("SESSION_SECRET", "")
     if env_secret:
         return env_secret
     if TECHNITIUM_API_TOKEN:
-        return hmac.new(
-            TECHNITIUM_API_TOKEN.encode(), b"content-filter-session", "sha256"
-        ).hexdigest()
+        return _derive_key("session-signing")
     return secrets.token_hex(32)
 
 
@@ -72,6 +85,7 @@ def _read_api_token() -> str:
 
 
 TECHNITIUM_API_TOKEN = _read_api_token()
+AUTH_PASSTHROUGH_TOKEN = _derive_key("navbar-auth") if TECHNITIUM_API_TOKEN else ""
 
 # #53: Derive BLOCKED_SERVICES_PATH consistently from CONFIG_PATH
 BLOCKED_SERVICES_PATH = Path(
