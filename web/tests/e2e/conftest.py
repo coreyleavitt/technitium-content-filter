@@ -1,12 +1,21 @@
 """Fixtures for Playwright e2e tests."""
 
+import asyncio
 import json
+import socket
 import threading
 import time
 from unittest.mock import patch
 
 import pytest
-import uvicorn
+from hypercorn.asyncio import serve
+from hypercorn.config import Config as HypercornConfig
+
+
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 @pytest.fixture(scope="session")
@@ -103,7 +112,7 @@ def empty_config():
 
 
 def _start_server(config_path, services_path, config_data):
-    """Start a live uvicorn server, return (base_url, shutdown_fn)."""
+    """Start a live Hypercorn server, return (base_url, shutdown_fn)."""
     config_path.write_text(json.dumps(config_data, indent=2))
 
     from technitium_content_filter import config as config_module
@@ -120,23 +129,51 @@ def _start_server(config_path, services_path, config_data):
 
     from technitium_content_filter.app import app as app_instance
 
-    uv_config = uvicorn.Config(
-        app=app_instance,
-        host="127.0.0.1",
-        port=0,
-        log_level="warning",
-    )
-    server = uvicorn.Server(uv_config)
-    thread = threading.Thread(target=server.run, daemon=True)
+    port = _find_free_port()
+    hc = HypercornConfig()
+    hc.bind = [f"127.0.0.1:{port}"]
+    hc.loglevel = "WARNING"
+
+    stop_event = threading.Event()
+
+    async def _shutdown_trigger() -> None:
+        while not stop_event.is_set():
+            await asyncio.sleep(0.1)
+
+    def _run() -> None:
+        # Use subprocess-like isolation: new_event_loop without set_event_loop
+        # to avoid corrupting the main thread's event loop state
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                serve(app_instance, hc, shutdown_trigger=_shutdown_trigger)  # type: ignore[arg-type]
+            )
+        finally:
+            try:
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                loop.close()
+
+    thread = threading.Thread(target=_run, daemon=True)
     thread.start()
 
-    while not server.started:
-        time.sleep(0.05)
+    # Wait for server to be ready
+    import httpx
 
-    port = server.servers[0].sockets[0].getsockname()[1]
+    for _ in range(100):
+        try:
+            httpx.get(f"http://127.0.0.1:{port}/login", timeout=1.0)
+            break
+        except (httpx.ConnectError, httpx.ReadError):
+            time.sleep(0.05)
 
-    def shutdown():
-        server.should_exit = True
+    def shutdown() -> None:
+        stop_event.set()
         thread.join(timeout=5)
         for p in patches:
             p.stop()
@@ -146,7 +183,7 @@ def _start_server(config_path, services_path, config_data):
 
 @pytest.fixture()
 def live_server(config_path, _services_path, sample_config):
-    """Start the Starlette app with sample config, yield the base URL."""
+    """Start the app with sample config, yield the base URL."""
     base_url, shutdown = _start_server(config_path, _services_path, sample_config)
     yield base_url
     shutdown()
@@ -154,7 +191,7 @@ def live_server(config_path, _services_path, sample_config):
 
 @pytest.fixture()
 def live_server_empty(config_path, _services_path, empty_config):
-    """Start the Starlette app with empty config, yield the base URL."""
+    """Start the app with empty config, yield the base URL."""
     base_url, shutdown = _start_server(config_path, _services_path, empty_config)
     yield base_url
     shutdown()

@@ -9,9 +9,9 @@ import respx
 from httpx import Response
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from starlette.testclient import TestClient
+from litestar.testing import TestClient
 
-from tests.conftest import read_config
+from tests.conftest import _CSRFClient, read_config
 
 # ---------------------------------------------------------------------------
 # #59: Config read-modify-write race condition
@@ -196,7 +196,7 @@ class TestUrlValidation:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/blocklists",
                 json={"url": url, "name": "test", "enabled": True, "refreshHours": 24},
@@ -240,7 +240,7 @@ class TestUrlValidation:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/blocklists",
                 json={"url": url, "name": "test", "enabled": True, "refreshHours": 24},
@@ -287,7 +287,7 @@ class TestUrlValidation:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/blocklists",
                 json={"url": url, "name": "test"},
@@ -417,7 +417,7 @@ class TestTechnitiumApiFailures:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/profiles",
                 json={
@@ -454,7 +454,7 @@ class TestTechnitiumApiFailures:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/profiles",
                 json={
@@ -491,7 +491,7 @@ class TestTechnitiumApiFailures:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             resp = c.post(
                 "/api/profiles",
                 json={
@@ -526,7 +526,7 @@ class TestTechnitiumApiFailures:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
             # Use api/config POST which returns reloaded status
             resp = c.post("/api/config", json=sample_config)
             data = resp.json()
@@ -583,7 +583,7 @@ class TestLargeConfig:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
 
             # Read config
             resp = c.get("/api/config")
@@ -628,7 +628,7 @@ class TestLargeConfig:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
 
             resp = c.get("/api/config")
             assert resp.status_code == 200
@@ -672,7 +672,7 @@ class TestLargeConfig:
             )
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
 
             resp = c.get("/api/config")
             assert resp.status_code == 200

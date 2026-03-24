@@ -18,12 +18,10 @@ classifiers = [
     "Topic :: Internet :: Name Service (DNS)",
 ]
 dependencies = [
-    "starlette>=0.41,<1.0",
+    "litestar[cryptography]>=2.15,<3.0",
     "hypercorn>=0.17,<1.0",
     "mako>=1.3,<2.0",
     "httpx>=0.28,<1.0",
-    "itsdangerous>=2.1,<3.0",
-    "python-multipart>=0.0.17",
 ]
 
 [project.scripts]
@@ -37,7 +35,6 @@ test = [
     "respx>=0.22,<1.0",
     "hypothesis>=6.100,<7.0",
     "pytest-playwright>=0.6,<1.0",
-    "uvicorn>=0.30,<1.0",
 ]
 
 [project.urls]
@@ -79,7 +76,7 @@ module = "mako.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "itsdangerous.*"
+module = "litestar.*"
 ignore_missing_imports = true
 
 [tool.ruff]

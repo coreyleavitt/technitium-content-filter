@@ -12,13 +12,11 @@ from httpx import Response
 class TestLoginRateLimit:
     def test_login_rate_limited(self, client_with_auth):
         from technitium_content_filter import config as config_module
-        from technitium_content_filter import middleware
+        from technitium_content_filter.rate_limiter import rate_limiter
 
         # TestClient uses "testclient" as client IP
         now = time.monotonic()
-        middleware._rate_limit_buckets["login:testclient"] = [now] * (
-            config_module.LOGIN_RATE_LIMIT + 1
-        )
+        rate_limiter.buckets["login:testclient"] = [now] * (config_module.LOGIN_RATE_LIMIT + 1)
 
         resp = client_with_auth.post(
             "/login",

@@ -74,10 +74,15 @@ async function apiCall(method, url, data) {
     }
 }
 
+function _getCsrfToken() {
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
 async function _apiCallInner(method, url, data) {
     const opts = {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrftoken': _getCsrfToken() },
     };
     if (data) opts.body = JSON.stringify(data);
     let resp;

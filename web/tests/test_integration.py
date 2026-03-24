@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from tests.conftest import read_config
+from tests.conftest import _CSRFClient, read_config
 
 
 @pytest.mark.api
@@ -133,11 +133,11 @@ class TestTechnitiumReload:
             mock.post("http://technitium-mock:5380/api/apps/config/set").mock(
                 return_value=Response(500, text="Internal error")
             )
-            from starlette.testclient import TestClient
+            from litestar.testing import TestClient
 
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
 
             resp = c.post(
                 "/api/settings",
@@ -167,11 +167,11 @@ class TestTechnitiumReload:
             patch("technitium_content_filter.config.AUTH_DISABLED", True),
             respx.mock(assert_all_called=False),
         ):
-            from starlette.testclient import TestClient
+            from litestar.testing import TestClient
 
             from technitium_content_filter.app import app
 
-            c = TestClient(app, raise_server_exceptions=True)
+            c = _CSRFClient(TestClient(app, raise_server_exceptions=True))
 
             resp = c.post("/api/config", json={"enableBlocking": True})
 

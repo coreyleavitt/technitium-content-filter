@@ -9,7 +9,9 @@ import respx
 from httpx import Response
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from starlette.testclient import TestClient
+from litestar.testing import TestClient
+
+from tests.conftest import _CSRFClient
 
 # --- Custom strategies ---
 
@@ -194,7 +196,7 @@ def _make_client(tmp_path, config_data):
         )
         from technitium_content_filter.app import app
 
-        yield TestClient(app, raise_server_exceptions=True), config_path
+        yield _CSRFClient(TestClient(app, raise_server_exceptions=True)), config_path
 
 
 # --- Property tests ---

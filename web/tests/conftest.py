@@ -1,20 +1,70 @@
+import asyncio
 import json
 from unittest.mock import patch
 
 import pytest
 import respx
 from httpx import Response
-from starlette.testclient import TestClient
+from litestar.testing import TestClient
+
+
+@pytest.fixture(scope="session")
+def event_loop_policy():
+    """Force standard asyncio policy to avoid uvloop conflicts with E2E threads."""
+    return asyncio.DefaultEventLoopPolicy()
+
+
+class _CSRFClient:
+    """Wraps TestClient to auto-include CSRF tokens in state-changing requests."""
+
+    def __init__(self, inner: TestClient) -> None:
+        self._inner = inner
+        # Seed the CSRF cookie with an initial safe GET
+        self._inner.get("/api/config")
+
+    def _csrf_headers(self, headers: dict | None) -> dict:
+        result = dict(headers) if headers else {}
+        token = self._inner.cookies.get("csrftoken")
+        if token and "x-csrftoken" not in {k.lower() for k in result}:
+            result["x-csrftoken"] = token
+        return result
+
+    def get(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        return self._inner.get(*args, **kwargs)
+
+    def post(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        kwargs["headers"] = self._csrf_headers(kwargs.get("headers"))
+        return self._inner.post(*args, **kwargs)
+
+    def put(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        kwargs["headers"] = self._csrf_headers(kwargs.get("headers"))
+        return self._inner.put(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        kwargs["headers"] = self._csrf_headers(kwargs.get("headers"))
+        return self._inner.delete(*args, **kwargs)
+
+    def patch(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        kwargs["headers"] = self._csrf_headers(kwargs.get("headers"))
+        return self._inner.patch(*args, **kwargs)
+
+    def request(self, method, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        if method.upper() in ("POST", "PUT", "DELETE", "PATCH"):
+            kwargs["headers"] = self._csrf_headers(kwargs.get("headers"))
+        return self._inner.request(method, *args, **kwargs)
+
+    def __getattr__(self, name):  # noqa: ANN001
+        return getattr(self._inner, name)
 
 
 @pytest.fixture(autouse=True)
 def _clear_rate_limit():
     """Clear rate limiter state between tests to prevent cross-test interference."""
-    from technitium_content_filter import middleware
+    from technitium_content_filter.rate_limiter import rate_limiter
 
-    middleware._rate_limit_buckets.clear()
+    rate_limiter.clear()
     yield
-    middleware._rate_limit_buckets.clear()
+    rate_limiter.clear()
 
 
 @pytest.fixture()
@@ -105,7 +155,7 @@ def sample_config():
 
 @pytest.fixture()
 def make_client(tmp_config):
-    """Factory fixture for creating patched TestClients."""
+    """Factory fixture for creating patched TestClients with CSRF support."""
     _patches: list = []
     _mocks: list = []
 
@@ -137,7 +187,8 @@ def make_client(tmp_config):
         _mocks.append(mock)
         from technitium_content_filter.app import app
 
-        return TestClient(app, raise_server_exceptions=raise_exceptions)
+        inner = TestClient(app, raise_server_exceptions=raise_exceptions)
+        return _CSRFClient(inner)
 
     yield _factory
     for p in reversed(_patches):
@@ -148,7 +199,7 @@ def make_client(tmp_config):
 
 @pytest.fixture()
 def client(make_client, sample_config):
-    """Starlette TestClient with patched module globals."""
+    """TestClient with patched module globals."""
     return make_client(sample_config)
 
 
