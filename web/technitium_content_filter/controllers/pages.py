@@ -92,7 +92,7 @@ class PageController(Controller):
         profiles = cfg.get("profiles")
         if not isinstance(profiles, dict) or name not in profiles:
             base = config.BASE_PATH.rstrip("/")
-            return Redirect(path=f"{base}/profiles", status_code=302)  # type: ignore[return-value]
+            return Redirect(path=f"{base}/profiles", status_code=302)
         services = config.load_blocked_services()
         custom = cfg.get("customServices")
         all_services = {**services, **(_as_obj(custom) if isinstance(custom, dict) else {})}
@@ -124,34 +124,34 @@ class RedirectController(Controller):
     @get("/services")
     async def services_redirect(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/settings", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/settings", status_code=301)
 
     @get("/filters/blocklists")
     async def filters_blocklists(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/settings", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/settings", status_code=301)
 
     @get("/filters/allowlists")
     async def filters_allowlists(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/profiles", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/profiles", status_code=301)
 
     @get("/filters/services")
     async def filters_services(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/settings", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/settings", status_code=301)
 
     @get("/filters/rules")
     async def filters_rules(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/profiles", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/profiles", status_code=301)
 
     @get("/filters/regex")
     async def filters_regex(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/profiles", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/profiles", status_code=301)
 
     @get("/filters/rewrites")
     async def filters_rewrites(self) -> Response[Any]:
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/profiles", status_code=301)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/profiles", status_code=301)

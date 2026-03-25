@@ -76,11 +76,11 @@ def not_authenticated_handler(
             status_code=401,
             media_type="application/json",
         )
-    return Redirect(path=f"{base}/login", status_code=302)  # type: ignore[return-value]
+    return Redirect(path=f"{base}/login", status_code=302)
 
 
 def token_redirect_handler(
     _request: Request[Any, Any, Any], exc: TokenRedirectException
 ) -> Response[Any]:
     base = config.BASE_PATH.rstrip("/")
-    return Redirect(path=f"{base}{exc.path}", status_code=302)  # type: ignore[return-value]
+    return Redirect(path=f"{base}{exc.path}", status_code=302)

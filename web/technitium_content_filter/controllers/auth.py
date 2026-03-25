@@ -33,7 +33,7 @@ class AuthController(Controller):
     async def login_page(self, request: Request[Any, Any, Any]) -> Response[Any]:
         if not config.AUTH_DISABLED and request.session.get("user"):
             base = config.BASE_PATH.rstrip("/")
-            return Redirect(path=f"{base}/", status_code=302)  # type: ignore[return-value]
+            return Redirect(path=f"{base}/", status_code=302)
         return render("login.html", error="")
 
     @post("/login", status_code=200)
@@ -82,10 +82,10 @@ class AuthController(Controller):
         request.session["user"] = username
         request.session["login_time"] = time.time()
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/", status_code=302)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/", status_code=302)
 
     @post("/logout", status_code=200)
     async def logout(self, request: Request[Any, Any, Any]) -> Response[Any]:
         request.session.clear()
         base = config.BASE_PATH.rstrip("/")
-        return Redirect(path=f"{base}/login", status_code=302)  # type: ignore[return-value]
+        return Redirect(path=f"{base}/login", status_code=302)

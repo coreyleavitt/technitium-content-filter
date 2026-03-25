@@ -84,9 +84,9 @@ app = Litestar(
     ],
     csrf_config=csrf_config,
     exception_handlers={
-        NotAuthenticatedException: not_authenticated_handler,  # type: ignore[dict-item]
-        TokenRedirectException: token_redirect_handler,  # type: ignore[dict-item]
-        PermissionDeniedException: _permission_denied_handler,  # type: ignore[dict-item]
+        NotAuthenticatedException: not_authenticated_handler,
+        TokenRedirectException: token_redirect_handler,
+        PermissionDeniedException: _permission_denied_handler,
     },
     lifespan=[lifespan],
     debug=os.environ.get("DEBUG", "").lower() in ("1", "true", "yes"),
