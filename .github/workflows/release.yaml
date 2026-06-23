@@ -37,7 +37,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       sha: ${{ steps.commit.outputs.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Compute version
         id: version
@@ -73,7 +73,7 @@ jobs:
       - name: Commit version bump
         id: commit
         if: inputs.bump != 'no'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -139,7 +139,7 @@ jobs:
     needs: prepare-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
 
@@ -166,7 +166,7 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
 
@@ -198,7 +198,7 @@ jobs:
     needs: prepare-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
 
@@ -239,7 +239,7 @@ jobs:
     needs: [prepare-version, build-plugin]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
 
@@ -263,7 +263,7 @@ jobs:
     needs: [prepare-version, build-plugin, build-python, build-docker, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-version.outputs.sha || github.sha }}
 
